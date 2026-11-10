@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vetted · Token diligence desk</title>
+<meta name="description" content="Autonomous token-listing diligence. Every check bought from ranked Telegraph miners, receipted and independently verifiable." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231d5c46'/><path d='M8 16.5l5 5 11-11' stroke='white' stroke-width='3.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
+<style>
+:root {
+  --paper: #f5f2ea; --card: #fffdf8; --ink: #1c1b18; --ink-2: #57534a; --ink-3: #8a857a;
+  --rule: #e2ddd0; --rule-2: #ece8dd;
+  --go: #1d5c46; --go-bg: #e3efe8; --hold: #9a6a00; --hold-bg: #f7ecd2; --stop: #a3261b; --stop-bg: #f6e0dc;
+  --accent: #1d5c46; --focus: #2f6fdb;
+  --mono: "IBM Plex Mono", ui-monospace, monospace; --sans: "IBM Plex Sans", system-ui, sans-serif; --serif: "Newsreader", Georgia, serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #121311; --card: #1a1b18; --ink: #ecebe6; --ink-2: #b4b0a6; --ink-3: #7f7b72;
+  --rule: #2c2d29; --rule-2: #24251f;
+  --go: #5fbf96; --go-bg: #17291f; --hold: #e0b54a; --hold-bg: #2b2414; --stop: #ef7b6c; --stop-bg: #301a17; --accent: #5fbf96;
+}}
+:root[data-theme="dark"] {
+  --paper: #121311; --card: #1a1b18; --ink: #ecebe6; --ink-2: #b4b0a6; --ink-3: #7f7b72;
+  --rule: #2c2d29; --rule-2: #24251f;
+  --go: #5fbf96; --go-bg: #17291f; --hold: #e0b54a; --hold-bg: #2b2414; --stop: #ef7b6c; --stop-bg: #301a17; --accent: #5fbf96;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.5 var(--sans); }
+a { color: inherit; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 20px; }
+header.top { border-bottom: 1px solid var(--rule); }
+header.top .wrap { display: flex; align-items: center; gap: 16px; min-height: 64px; flex-wrap: wrap; }
+.brand { display: flex; align-items: baseline; gap: 12px; text-decoration: none; }
+.brand b { font: 600 24px/1 var(--serif); letter-spacing: -0.01em; }
+.brand span { color: var(--ink-3); font-size: 13px; }
+.status { margin-left: auto; display: flex; gap: 8px; align-items: center; font: 12px var(--mono); color: var(--ink-2); flex-wrap: wrap; }
+.pill { border: 1px solid var(--rule); border-radius: 999px; padding: 3px 10px; background: var(--card); white-space: nowrap; }
+.pill.live::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--go); margin-right: 6px; vertical-align: 1px; }
+.pill.sim { color: var(--hold); border-color: color-mix(in srgb, var(--hold) 40%, var(--rule)); background: var(--hold-bg); }
+
+main.wrap { display: grid; grid-template-columns: 360px 1fr; gap: 28px; padding-top: 28px; padding-bottom: 60px; align-items: start; }
+@media (max-width: 920px) { main.wrap { grid-template-columns: minmax(0, 1fr); } }
+main.wrap > * { min-width: 0; }
+@media (max-width: 640px) { .verdict { grid-template-columns: minmax(0, 1fr); gap: 12px; } .stamp { justify-self: start; } .brand span { display: none; } .wrap { padding: 0 16px; } .status { margin-left: 0; } }
+
+.card { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; }
+.form { padding: 20px; position: sticky; top: 16px; }
+@media (max-width: 920px) { .form { position: static; } }
+.form h2 { font: 600 19px/1.2 var(--serif); margin: 0 0 4px; }
+.form p.sub { margin: 0 0 16px; color: var(--ink-2); font-size: 13.5px; }
+.seg { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border: 1px solid var(--rule); border-radius: 8px; padding: 3px; gap: 3px; margin-bottom: 14px; }
+.seg button { border: 0; background: none; padding: 7px 8px; border-radius: 6px; cursor: pointer; font-size: 13.5px; color: var(--ink-2); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+label { display: block; font-size: 12.5px; color: var(--ink-2); margin: 12px 0 5px; }
+input, select { width: 100%; min-width: 0; padding: 9px 11px; border: 1px solid var(--rule); border-radius: 7px; background: var(--paper); }
+input.mono { font: 13px var(--mono); }
+.row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+details.more { margin-top: 14px; border-top: 1px dashed var(--rule); padding-top: 10px; }
+details.more summary { cursor: pointer; font-size: 13px; color: var(--ink-2); }
+.run { margin-top: 18px; width: 100%; padding: 11px; border: 0; border-radius: 8px; background: var(--accent); color: var(--paper); font-weight: 600; cursor: pointer; }
+.run:disabled { opacity: .55; cursor: progress; }
+.hint { font-size: 12px; color: var(--ink-3); margin-top: 10px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.chip { font: 12px var(--mono); border: 1px solid var(--rule); background: var(--paper); border-radius: 999px; padding: 3px 9px; cursor: pointer; color: var(--ink-2); }
+.err { color: var(--stop); font-size: 13px; margin-top: 10px; min-height: 1em; }
+
+.empty { padding: 48px 32px; text-align: center; color: var(--ink-2); }
+.empty h1 { font: 500 30px/1.15 var(--serif); color: var(--ink); margin: 0 auto 12px; max-width: 560px; letter-spacing: -0.01em; }
+.empty p { max-width: 520px; margin: 0 auto 8px; }
+.how { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 28px; text-align: left; }
+@media (max-width: 640px) { .how { grid-template-columns: 1fr; } }
+.how div { border-top: 2px solid var(--ink); padding-top: 10px; font-size: 13.5px; }
+.how b { display: block; font: 600 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 4px; }
+
+.tape { margin-bottom: 18px; }
+.tape header { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 16px; border-bottom: 1px solid var(--rule); }
+.tape header h3 { margin: 0; font: 600 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+.tape header span { font: 12px var(--mono); color: var(--ink-2); }
+.tape ol { list-style: none; margin: 0; padding: 4px 0; max-height: 260px; overflow: auto; }
+.tape li { display: grid; grid-template-columns: 74px 1fr auto auto; gap: 12px; padding: 5px 16px; font: 12.5px/1.45 var(--mono); align-items: baseline; animation: in .25s ease-out; }
+.tape li .k { color: var(--ink-3); }
+.tape li .m { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tape li .c { color: var(--ink-2); }
+.tape li.bad .m { color: var(--stop); }
+.tape li.meh .m { color: var(--hold); }
+@keyframes in { from { opacity: 0; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .tape li { animation: none; } }
+
+.memo { padding: 28px 30px 24px; }
+@media (max-width: 640px) { .memo { padding: 20px 16px; } .tape li { grid-template-columns: 60px 1fr auto; } .tape li .t { display: none; } }
+.memo .eyebrow { font: 12px var(--mono); color: var(--ink-3); letter-spacing: .04em; display: flex; gap: 12px; flex-wrap: wrap; }
+.memo h1 { font: 600 32px/1.1 var(--serif); margin: 8px 0 4px; letter-spacing: -0.015em; overflow-wrap: anywhere; }
+.memo .addr { font: 12.5px var(--mono); color: var(--ink-2); overflow-wrap: anywhere; }
+.verdict { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 22px; align-items: center; margin: 22px 0 6px; padding: 18px 20px; border-radius: 10px; }
+.verdict.go { background: var(--go-bg); } .verdict.hold { background: var(--hold-bg); } .verdict.stop { background: var(--stop-bg); }
+.stamp { font: 600 13px var(--mono); letter-spacing: .14em; padding: 10px 16px; border: 2px solid currentColor; border-radius: 6px; transform: rotate(-3deg); }
+.go .stamp { color: var(--go); } .hold .stamp { color: var(--hold); } .stop .stamp { color: var(--stop); }
+.stamp em { display: block; font: 600 30px/1 var(--serif); font-style: normal; letter-spacing: .02em; }
+.verdict .why { font-size: 14.5px; }
+.verdict .score { font: 500 13px var(--mono); color: var(--ink-2); margin-bottom: 4px; }
+.sim-banner { margin-top: 14px; padding: 9px 12px; border-radius: 7px; background: var(--hold-bg); color: var(--hold); font-size: 13px; }
+
+.findings { list-style: none; padding: 0; margin: 22px 0 0; border-top: 1px solid var(--rule); }
+.findings > li { border-bottom: 1px solid var(--rule-2); padding: 14px 0; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; }
+.ico { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font: 600 12px var(--mono); margin-top: 2px; }
+.ico.pass { background: var(--go-bg); color: var(--go); } .ico.warn { background: var(--hold-bg); color: var(--hold); }
+.ico.fail { background: var(--stop-bg); color: var(--stop); } .ico.unknown, .ico.pending { background: var(--rule-2); color: var(--ink-3); }
+.ico.pending { animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+.findings h4 { margin: 0; font-size: 14.5px; font-weight: 600; }
+.findings p { margin: 2px 0 0; color: var(--ink-2); font-size: 14px; overflow-wrap: anywhere; }
+.findings details { margin-top: 6px; }
+.findings summary { cursor: pointer; font: 12px var(--mono); color: var(--ink-3); }
+.ev { font: 12px/1.5 var(--mono); margin: 6px 0 0; padding: 0; list-style: none; }
+.ev li { padding: 6px 10px; background: var(--paper); border-radius: 6px; margin-bottom: 4px; overflow-wrap: anywhere; }
+.ev .tag { display: inline-block; padding: 0 6px; border-radius: 4px; font-size: 11px; margin-right: 6px; }
+.tag.ok { background: var(--go-bg); color: var(--go); } .tag.bad { background: var(--stop-bg); color: var(--stop); } .tag.meh { background: var(--hold-bg); color: var(--hold); }
+
+.costline { margin-top: 22px; display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--rule); border-radius: 8px; }
+.costline div { padding: 12px 14px; border-right: 1px solid var(--rule); }
+.costline div:last-child { border-right: 0; }
+.costline b { display: block; font: 500 20px/1.2 var(--mono); }
+.costline span { font-size: 12px; color: var(--ink-3); }
+@media (max-width: 640px) { .costline { grid-template-columns: 1fr 1fr; } .costline div:nth-child(2) { border-right: 0; } .costline div:nth-child(-n+2) { border-bottom: 1px solid var(--rule); } }
+
+.sig { margin-top: 18px; font: 12px/1.6 var(--mono); color: var(--ink-3); overflow-wrap: anywhere; }
+.actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--rule); background: var(--paper); padding: 8px 13px; border-radius: 7px; cursor: pointer; font-size: 13.5px; text-decoration: none; }
+.btn.primary { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+.verify-out { margin-top: 12px; font: 12.5px/1.6 var(--mono); }
+.verify-out .ok { color: var(--go); } .verify-out .no { color: var(--stop); }
+
+.recent { margin-top: 26px; }
+.recent h3 { font: 600 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; margin: 0 0 8px; }
+.recent ul { list-style: none; padding: 0; margin: 0; }
+.recent li a { display: grid; grid-template-columns: 90px 1fr auto; gap: 12px; padding: 8px 2px; border-bottom: 1px solid var(--rule-2); text-decoration: none; font-size: 13.5px; }
+.recent .d { font: 600 12px var(--mono); }
+.recent .d.go { color: var(--go); } .recent .d.hold { color: var(--hold); } .recent .d.stop { color: var(--stop); }
+.recent .x { font: 12px var(--mono); color: var(--ink-3); }
+footer { color: var(--ink-3); font-size: 12.5px; padding: 0 20px 40px; text-align: center; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="/"><b>Vetted</b><span>token diligence desk · intelligence bought on Telegraph</span></a>
+  <div class="status" id="status"><span class="pill">connecting…</span></div>
+</div></header>
+
+<main class="wrap">
+  <form class="card form" id="form" autocomplete="off">
+    <h2>New diligence request</h2>
+    <p class="sub">Paste a token. Vetted buys each check from the best-ranked Telegraph miners, cross-checks them, and signs a memo.</p>
+    <div class="seg" role="group" aria-label="Mode">
+      <button type="button" data-mode="listing" aria-pressed="true">Exchange listing</button>
+      <button type="button" data-mode="pretrade" aria-pressed="false">Agent pre-trade</button>
+    </div>
+    <div class="row2">
+      <div><label for="chain">Chain</label>
+        <select id="chain" name="chain">
+          <option value="ethereum">Ethereum</option><option value="base">Base</option><option value="arbitrum">Arbitrum</option>
+          <option value="polygon">Polygon</option><option value="optimism">Optimism</option><option value="bsc">BNB Chain</option>
+        </select></div>
+      <div class="pretrade-only" hidden><label for="tradeUsd">Trade size (USD)</label><input id="tradeUsd" name="tradeUsd" inputmode="decimal" placeholder="25000" /></div>
+    </div>
+    <label for="token">Token contract</label>
+    <input id="token" name="token" class="mono" placeholder="0x…" required spellcheck="false" />
+    <div class="chips" aria-label="Examples">
+      <button type="button" class="chip" data-ex="pepe">PEPE · Ethereum</button>
+      <button type="button" class="chip" data-ex="usdc-base">USDC · Base</button>
+      <button type="button" class="chip" data-ex="rug" id="ex-rug" hidden>synthetic rug (simulated)</button>
+    </div>
+    <details class="more listing-only" open>
+      <summary>Listing application (optional)</summary>
+      <label for="issuer">Issuing entity</label><input id="issuer" name="issuer" placeholder="Acme Labs Ltd" />
+      <label for="people">Key people (comma separated, max 3)</label><input id="people" name="people" placeholder="Jane Doe, John Roe" />
+      <div class="row2">
+        <div><label for="xHandle">X handle</label><input id="xHandle" name="xHandle" placeholder="@project" /></div>
+        <div><label for="website">Website</label><input id="website" name="website" placeholder="project.xyz" /></div>
+      </div>
+    </details>
+    <button class="run" id="run" type="submit">Run diligence</button>
+    <div class="err" id="err" role="alert"></div>
+    <div class="hint" id="costhint">Typical cost: ~$0.08–0.15 in test USDC per memo, paid per check via x402.</div>
+  </form>
+
+  <section id="out" aria-live="polite">
+    <div class="card empty" id="empty">
+      <h1>A listing committee's first pass, in about 30 seconds, for about ten cents.</h1>
+      <p>Vetted is an autonomous diligence agent. It buys contract security, holder, supply, liquidity, wash-trading, sanctions and reputation intelligence from competing Telegraph miners, then writes a signed LIST / REVIEW / REJECT memo.</p>
+      <div class="how">
+        <div><b>Buys</b>Each check is a paid machine-to-machine request, routed to ranked miners and settled in USDC.</div>
+        <div><b>Cross-checks</b>Deterministic facts are bought from independent miners and compared. Junk answers are shown, not hidden.</div>
+        <div><b>Proves</b>Every claim links to a receipt anyone can re-verify. The memo itself is signed by the agent.</div>
+      </div>
+    </div>
+    <div class="card tape" id="tape" hidden>
+      <header><h3>Purchase tape</h3><span id="tapesum">0 purchases · $0.000</span></header>
+      <ol id="tapelist"></ol>
+    </div>
+    <article class="card memo" id="memo" hidden></article>
+    <div class="recent" id="recent" hidden><h3>Recent memos</h3><ul id="recentlist"></ul></div>
+  </section>
+</main>
+<footer>Vetted runs on the Telegraph testnet (Ethereum Sepolia). Test USDC only. A memo is decision support, not investment or legal advice.</footer>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const short = (h, n = 6) => (h ? `${h.slice(0, n + 2)}…${h.slice(-4)}` : "");
+const usd = (n) => `$${(n ?? 0).toFixed(3)}`;
+const tone = (d) => (/LIST|ALLOW/.test(d) ? "go" : /REVIEW|CAUTION/.test(d) ? "hold" : "stop");
+const ICON = { pass: "✓", warn: "!", fail: "×", unknown: "?", pending: "·" };
+const EXAMPLES = {
+  pepe: { chain: "ethereum", token: "0x6982508145454ce325ddbe47a25d4ec3d2311933", issuer: "", people: "", xHandle: "pepecoineth", website: "pepe.vip" },
+  "usdc-base": { chain: "base", token: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", issuer: "Circle Internet Financial", people: "", xHandle: "circle", website: "circle.com" },
+  rug: { chain: "ethereum", token: "0xbad0000000000000000000000000000000000bad", issuer: "Rug Labs", people: "Lazarus Group", xHandle: "rugtoken", website: "rug.example" },
+};
+let mode = "listing", status = null, node = "", es = null;
+
+async function loadStatus() {
+  try {
+    status = await (await fetch("/api/status")).json();
+    node = status.node;
+    const s = $("#status");
+    s.innerHTML = status.simulated
+      ? `<span class="pill sim">SIMULATED · no Telegraph purchases</span>`
+      : `<span class="pill live">LIVE · Sepolia testnet</span><span class="pill">payer ${esc(short(status.payer, 4))}</span><span class="pill">${status.usdc == null ? "?" : status.usdc.toFixed(2)} USDC</span><span class="pill">today left $${status.budget.dailyRemainingUsd.toFixed(2)}</span>`;
+    $("#ex-rug").hidden = !status.simulated;
+  } catch { $("#status").innerHTML = `<span class="pill">server offline</span>`; }
+}
+
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === m)));
+  document.querySelectorAll(".listing-only").forEach((el) => (el.hidden = m !== "listing"));
+  document.querySelectorAll(".pretrade-only").forEach((el) => (el.hidden = m !== "pretrade"));
+  $("#run").textContent = m === "listing" ? "Run diligence" : "Check before trading";
+}
+document.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
+document.querySelectorAll("[data-ex]").forEach((b) => b.addEventListener("click", () => {
+  const ex = EXAMPLES[b.dataset.ex];
+  for (const [k, v] of Object.entries(ex)) { const el = document.getElementById(k); if (el) el.value = v; }
+}));
+
+// ---------- live run ----------
+let pending = new Map(), findings = new Map(), tape = { n: 0, cost: 0 };
+
+$("#form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  $("#err").textContent = "";
+  const fd = new FormData(e.target);
+  const q = new URLSearchParams({ mode });
+  for (const [k, v] of fd.entries()) if (String(v).trim()) q.set(k, String(v).trim());
+  if (mode !== "listing") ["issuer", "people", "xHandle", "website"].forEach((k) => q.delete(k));
+  if (!/^0x[0-9a-fA-F]{40}$/.test(q.get("token") || "")) { $("#err").textContent = "Enter a 0x-prefixed 40-hex-character contract address."; return; }
+  start(q);
+});
+
+function start(q) {
+  es?.close();
+  pending = new Map(); findings = new Map(); tape = { n: 0, cost: 0 };
+  $("#empty").hidden = true; $("#tape").hidden = false; $("#memo").hidden = false;
+  $("#tapelist").innerHTML = ""; $("#tapesum").textContent = "0 purchases · $0.000";
+  $("#memo").innerHTML = `<div class="eyebrow"><span>DILIGENCE IN PROGRESS</span></div><h1>Buying intelligence…</h1><div class="addr">${esc(q.get("token"))} · ${esc(q.get("chain") || "ethereum")}</div><ul class="findings" id="live"></ul>`;
+  $("#run").disabled = true;
+  es = new EventSource(`/api/vet/stream?${q}`);
+  es.addEventListener("check:start", (ev) => { const d = JSON.parse(ev.data); pending.set(d.check, d.label); renderLive(); });
+  es.addEventListener("attempt", (ev) => addTape(JSON.parse(ev.data)));
+  es.addEventListener("check:done", (ev) => { const d = JSON.parse(ev.data); findings.set(d.check, d.finding); renderLive(); });
+  es.addEventListener("memo", (ev) => { const { memo } = JSON.parse(ev.data); finish(); renderMemo(memo); history.replaceState(null, "", `/m/${memo.id}`); loadRecent(); loadStatus(); });
+  es.addEventListener("error", (ev) => {
+    let msg = "Connection lost.";
+    try { msg = JSON.parse(ev.data).message; } catch {}
+    if (es.readyState === EventSource.CLOSED || ev.data) { finish(); $("#err").textContent = msg; }
+  });
+}
+function finish() { es?.close(); $("#run").disabled = false; }
+
+function addTape({ check, evidence: e }) {
+  tape.n++; tape.cost += e.costUsd;
+  const cls = !e.ok ? "bad" : !e.usable ? "meh" : "";
+  const li = document.createElement("li");
+  li.className = cls;
+  li.innerHTML = `<span class="k">${esc(check)}</span><span class="m" title="${esc(e.error || "")}">${e.ok ? (e.usable ? "bought" : "unusable answer") : "refused, not charged"} ← ${esc(e.minerSlug || e.intent || "")}${e.signalHash ? ` · ${esc(short(e.signalHash))}` : ""}</span><span class="c">${usd(e.costUsd)}</span><span class="c t">${e.durationMs}ms</span>`;
+  $("#tapelist").prepend(li);
+  $("#tapesum").textContent = `${tape.n} purchases · ${usd(tape.cost)}`;
+}
+
+function renderLive() {
+  const ul = $("#live"); if (!ul) return;
+  ul.innerHTML = [...pending.entries()].map(([k, label]) => {
+    const f = findings.get(k);
+    return f ? findingHtml(f) : `<li><span class="ico pending">${ICON.pending}</span><div><h4>${esc(label)}</h4><p>buying…</p></div></li>`;
+  }).join("");
+}
+
+function evidenceHtml(e) {
+  const tag = !e.ok ? `<span class="tag bad">refused · not charged</span>` : !e.usable ? `<span class="tag meh">unusable answer</span>` : `<span class="tag ok">used</span>`;
+  const sig = e.signalHash ? `<br>signal <a href="${esc(node)}/engine/v1/signal/${esc(e.signalHash)}" target="_blank" rel="noopener">${esc(e.signalHash)}</a>` : "";
+  const tx = e.txHash ? `<br>settlement <a href="https://sepolia.etherscan.io/tx/${esc(e.txHash)}" target="_blank" rel="noopener">${esc(short(e.txHash, 10))}</a>` : "";
+  return `<li>${tag}${esc(e.intent || "")} → ${esc(e.minerSlug || "auto")}${e.minerId && e.minerId !== "sim" ? ` #${esc(e.minerId)}` : ""} · ${usd(e.costUsd)} · ${e.durationMs}ms${e.error ? `<br><span style="color:var(--ink-3)">${esc(e.error)}</span>` : ""}${sig}${tx}</li>`;
+}
+function findingHtml(f) {
+  return `<li><span class="ico ${f.status}" aria-label="${f.status}">${ICON[f.status]}</span><div><h4>${esc(f.label)}</h4><p>${esc(f.summary)}</p>${f.evidence.length ? `<details><summary>${f.evidence.length} purchase${f.evidence.length > 1 ? "s" : ""} · ${usd(f.evidence.reduce((s, e) => s + e.costUsd, 0))}</summary><ul class="ev">${f.evidence.map(evidenceHtml).join("")}</ul></details>` : ""}</div></li>`;
+}
+
+function renderMemo(m) {
+  const v = m.verdict, t = tone(v.decision);
+  const name = [m.token.name, m.token.symbol && `(${m.token.symbol})`].filter(Boolean).join(" ") || "Unknown token";
+  const a = m.application;
+  $("#memo").hidden = false; $("#empty").hidden = true;
+  $("#memo").innerHTML = `
+    <div class="eyebrow"><span>${a.mode === "listing" ? "LISTING RISK MEMO" : "PRE-TRADE CHECK"}</span><span>${esc(m.id)}</span><span>${new Date(m.createdAt).toUTCString()}</span></div>
+    <h1>${esc(name)}</h1>
+    <div class="addr">${esc(a.token)} · ${esc(a.chain)}${a.issuer ? ` · issuer ${esc(a.issuer)}` : ""}${a.tradeUsd ? ` · trade $${esc(a.tradeUsd.toLocaleString())}` : ""}</div>
+    ${m.simulated ? `<div class="sim-banner">SIMULATED memo: answers come from recorded fixtures. No Telegraph purchase was made and there are no receipts.</div>` : ""}
+    <div class="verdict ${t}">
+      <div class="stamp"><em>${esc(v.decision)}</em></div>
+      <div><div class="score">risk score ${v.score}/100</div><div class="why">${v.reasons.map(esc).join(" ")}</div></div>
+    </div>
+    <ul class="findings">${m.findings.map(findingHtml).join("")}</ul>
+    <div class="costline">
+      <div><b>${usd(m.cost.totalUsd)}</b><span>intelligence cost</span></div>
+      <div><b>${m.cost.purchases}</b><span>paid purchases</span></div>
+      <div><b>${m.cost.unusable + m.cost.failed}</b><span>unusable / failed</span></div>
+      <div><b>${(m.durationMs / 1000).toFixed(1)}s</b><span>wall time</span></div>
+    </div>
+    <div class="sig">${m.signature ? `signed by ${esc(m.signer)}<br>digest ${esc(m.digest)}<br>signature ${esc(short(m.signature, 18))}` : `digest ${esc(m.digest)} (unsigned)`}${m.payer ? `<br>paid by ${esc(m.payer)} on ${esc(m.network)}` : ""}</div>
+    <div class="actions">
+      <button class="btn primary" id="verify">Verify independently</button>
+      <a class="btn" href="/api/memos/${esc(m.id)}" download="vetted-${esc(m.id)}.json">Download JSON</a>
+      <button class="btn" id="copy">Copy link</button>
+    </div>
+    <div class="verify-out" id="vout"></div>`;
+  $("#verify").onclick = () => verify(m.id);
+  $("#copy").onclick = async () => { try { await navigator.clipboard.writeText(location.origin + `/m/${m.id}`); $("#copy").textContent = "Copied"; } catch { $("#copy").textContent = location.origin + `/m/${m.id}`; } };
+}
+
+async function verify(id) {
+  const out = $("#vout");
+  out.textContent = "Recomputing digest, recovering signer, re-fetching every receipt from the Telegraph node…";
+  const v = await (await fetch(`/api/memos/${id}/verify`)).json();
+  const mark = (ok) => `<span class="${ok ? "ok" : "no"}">${ok ? "✓" : "✗"}</span>`;
+  out.innerHTML = [
+    `${mark(v.digestMatches)} memo digest matches its contents`,
+    `${mark(v.signatureValid)} signature recovers to ${esc(v.recoveredSigner || "n/a")}`,
+    v.simulated ? `<span class="no">·</span> simulated memo: no receipts to check` :
+      `${mark(v.allSignalsVerified)} ${v.signals.filter((s) => s.matches).length}/${v.signals.length} receipts re-derived locally with keccak256 (not trusting the node's flag)`,
+    ...v.signals.filter((s) => !s.matches).map((s) => `<span class="no">✗</span> ${esc(short(s.signalHash))}: ${esc(s.error || "hash mismatch")}`),
+  ].join("<br>");
+}
+
+async function loadRecent() {
+  try {
+    const list = await (await fetch("/api/memos")).json();
+    if (!list.length) return;
+    $("#recent").hidden = false;
+    $("#recentlist").innerHTML = list.slice(0, 8).map((m) => `<li><a href="/m/${esc(m.id)}" data-id="${esc(m.id)}"><span class="d ${tone(m.verdict.decision)}">${esc(m.verdict.decision)}</span><span>${esc(m.token.symbol || short(m.application.token))} · ${esc(m.application.chain)}${m.simulated ? " · sim" : ""}</span><span class="x">${usd(m.cost.totalUsd)}</span></a></li>`).join("");
+    document.querySelectorAll("#recentlist a").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); openMemo(a.dataset.id); }));
+  } catch {}
+}
+async function openMemo(id) {
+  const r = await fetch(`/api/memos/${encodeURIComponent(id)}`);
+  if (!r.ok) return;
+  $("#tape").hidden = true;
+  renderMemo(await r.json());
+  history.replaceState(null, "", `/m/${id}`);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+loadStatus(); loadRecent();
+const m = location.pathname.match(/^\/m\/([\w-]+)/); if (m) openMemo(m[1]);
+</script>
+</body>
+</html>

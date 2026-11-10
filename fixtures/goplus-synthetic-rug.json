@@ -1,0 +1,172 @@
+{
+ "code": 1,
+ "message": "OK",
+ "_synthetic": true,
+ "result": {
+  "0xbad0000000000000000000000000000000000bad": {
+   "anti_whale_modifiable": "1",
+   "buy_tax": "0.10",
+   "can_take_back_ownership": "0",
+   "cannot_buy": "0",
+   "cannot_sell_all": "0",
+   "creator_address": "0xfbfEaF0DA0F2fdE5c66dF570133aE35f3eB58c9A",
+   "creator_balance": "3718337.06",
+   "creator_percent": "0.000000",
+   "dex": [
+    {
+     "liquidity_type": "UniV2",
+     "name": "UniswapV2",
+     "liquidity": "8400.12",
+     "pair": "0x2222222222222222222222222222222222222222"
+    }
+   ],
+   "external_call": "0",
+   "hidden_owner": "1",
+   "holder_count": "212",
+   "holders": [
+    {
+     "address": "0x1111111111111111111111111111111111111111",
+     "percent": "0.62"
+    },
+    {
+     "address": "0x3333333333333333333333333333333333333333",
+     "percent": "0.21"
+    }
+   ],
+   "honeypot_with_same_creator": "0",
+   "is_anti_whale": "1",
+   "is_blacklisted": "1",
+   "is_honeypot": "1",
+   "is_in_cex": {
+    "listed": "1",
+    "cex_list": [
+     "Binance",
+     "Coinbase"
+    ]
+   },
+   "is_in_dex": "1",
+   "is_mintable": "1",
+   "is_open_source": "0",
+   "is_proxy": "0",
+   "is_whitelisted": "0",
+   "lp_holder_count": "80",
+   "lp_holders": [
+    {
+     "address": "0x6982508145454ce325ddbe47a25d4ec3d2311933",
+     "tag": "",
+     "value": "15847918.486976050474713392",
+     "is_contract": 1,
+     "balance": "27987939.902750970427665813",
+     "percent": "0.993745421613000260",
+     "NFT_list": null,
+     "is_locked": 0
+    },
+    {
+     "address": "0x7a6a59588b8106045303e1923227a2cefbec2b66",
+     "tag": "",
+     "value": "29809.507043043130890017",
+     "is_contract": 1,
+     "balance": "52644.559746881776412508",
+     "percent": "0.001869208323409100",
+     "NFT_list": null,
+     "is_locked": 0
+    },
+    {
+     "address": "0x4f748d76346a3740a99a46c41fe6b7b0b602dc3f",
+     "tag": "",
+     "value": "27048.915577328252009654",
+     "is_contract": 1,
+     "balance": "47769.265360305341523845",
+     "percent": "0.001696105140662889",
+     "NFT_list": null,
+     "is_locked": 0
+    },
+    {
+     "address": "0x6022da250359ae571420ae410abfa9a84b664689",
+     "tag": "",
+     "value": "25291.218972062479924072",
+     "is_contract": 1,
+     "balance": "44665.115941826434695451",
+     "percent": "0.001585888587271159",
+     "NFT_list": null,
+     "is_locked": 0
+    },
+    {
+     "address": "0x371d98623613ef5e9bb04014b999e2b7da4d3739",
+     "tag": "",
+     "value": "3719.449099528590857602",
+     "is_contract": 1,
+     "balance": "6568.668179010222481018",
+     "percent": "0.000233228453100430",
+     "NFT_list": null,
+     "is_locked": 0
+    },
+    {
+     "address": "0x4c3923c5e4e87eb2f0eb7db6818ee743ddc9cd50",
+     "tag": "",
+     "value": "2933.505727623485361116",
+     "is_contract": 0,
+     "balance": "5180.666601520862562934",
+     "percent": "0.000183945790010028",
+     "NFT_list": null,
+     "is_locked": 0
+    },
+    {
+     "address": "0xe1512fb3d7c9bd07fb27d199cc037de5c5f81a31",
+     "tag": "",
+     "value": "1527.573845593538693648",
+     "is_contract": 0,
+     "balance": "2697.745134329246312255",
+     "percent": "0.000095786681164587",
+     "NFT_list": null,
+     "is_locked": 0
+    },
+    {
+     "address": "0x000000000000000000000000000000000000dead",
+     "tag": "",
+     "value": "1449.510228602086925010",
+     "is_contract": 0,
+     "balance": "2559.882245726958199859",
+     "percent": "0.000090891693722321",
+     "NFT_list": null,
+     "is_locked": 1
+    },
+    {
+     "address": "0x4dc77f9318bfd41bafe10603c65c00e93c6be11f",
+     "tag": "",
+     "value": "1261.855603317810001039",
+     "is_contract": 0,
+     "balance": "2228.478069257613878418",
+     "percent": "0.000079124790398455",
+     "NFT_list": null,
+     "is_locked": 0
+    },
+    {
+     "address": "0x0fbf5b87bde5b99906a0a80f7a5efc64ddd2a4c3",
+     "tag": "",
+     "value": "1190.015451110823094357",
+     "is_contract": 0,
+     "balance": "2101.606022040434715256",
+     "percent": "0.000074620045980294",
+     "NFT_list": null,
+     "is_locked": 0
+    }
+   ],
+   "lp_total_supply": "28164094.439119305574908461",
+   "owner_address": "0x1111111111111111111111111111111111111111",
+   "owner_balance": "0",
+   "owner_change_balance": "1",
+   "owner_percent": "0.0",
+   "personal_slippage_modifiable": "0",
+   "selfdestruct": "0",
+   "sell_tax": "0.99",
+   "slippage_modifiable": "0",
+   "token_name": "SYNTHETIC RUGTOKEN (test fixture)",
+   "token_symbol": "RUG",
+   "total_supply": "1000000000",
+   "trading_cooldown": "0",
+   "transfer_pausable": "1",
+   "transfer_tax": "0"
+  }
+ }
+}

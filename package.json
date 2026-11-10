@@ -1,0 +1,51 @@
+{
+  "name": "vetted",
+  "version": "0.1.0",
+  "description": "Autonomous token-listing diligence desk. Every check bought from ranked Telegraph miners, receipted and verifiable.",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/server/index.ts",
+    "start": "tsx src/server/index.ts",
+    "vet": "tsx src/cli/index.ts",
+    "mcp": "tsx src/mcp/index.ts",
+    "wallet:new": "tsx scripts/wallet.ts new",
+    "wallet:status": "tsx scripts/wallet.ts status",
+    "wallet:mint": "tsx scripts/wallet.ts mint",
+    "smoke": "tsx scripts/smoke.ts",
+    "build": "tsc -p tsconfig.json && cp -r src/server/public dist/server/",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "bot": "tsx src/telegram/run.ts",
+    "serve": "node dist/server/index.js"
+  },
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@hono/node-server": "^2.1.6",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@x402/core": "^2.30.0",
+    "@x402/evm": "^2.30.0",
+    "@x402/fetch": "^2.30.0",
+    "@x402/hono": "^2.30.0",
+    "canonicalize": "^5.1.0",
+    "dotenv": "^18.0.10",
+    "hono": "^4.13.17",
+    "pg": "^8.23.1",
+    "viem": "^2.57.17",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "bin": {
+    "vetted": "dist/cli/index.js",
+    "vetted-mcp": "dist/mcp/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

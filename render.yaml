@@ -1,0 +1,31 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+# New → Blueprint → pick this repo. Secrets marked `sync: false` are entered in the dashboard, never committed.
+services:
+  - type: web
+    name: vetted
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm run serve
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: EVM_PRIVATE_KEY        # throwaway TESTNET wallet only
+        sync: false
+      - key: DATABASE_URL           # Neon (or any) Postgres; keeps memos + ledger across restarts
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN     # optional; the bot uses a webhook on RENDER_EXTERNAL_URL automatically
+        sync: false
+      - key: TELEGRAPH_NODE_URL
+        value: https://devnode.telegraphprotocol.com
+      - key: SEPOLIA_RPC_URL
+        value: https://ethereum-sepolia-rpc.publicnode.com
+      - key: VETTED_MAX_PER_CALL_USD
+        value: "0.05"
+      - key: VETTED_MAX_PER_MEMO_USD
+        value: "0.40"
+      - key: VETTED_MAX_PER_DAY_USD
+        value: "5"
+      - key: VETTED_RUNS_PER_HOUR
+        value: "12"

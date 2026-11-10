@@ -6,6 +6,8 @@ Paste a token contract. Vetted buys contract security, holder, supply, liquidity
 
 The same engine runs in a second mode for trading agents: **ALLOW / CAUTION / BLOCK** before a swap, with a maximum trade size derived from verified liquidity.
 
+**Live demo:** https://vetted-8olr.onrender.com · **Telegram:** [@VettedCheckingBot](https://t.me/VettedCheckingBot) (send it a token address)
+
 > Network status: runs on the **Telegraph testnet** (Ethereum Sepolia, test USDC). Nothing here is production volume or paying-customer usage.
 
 Built for Telegraph Hackathon Season II, Apps & Agents track. Missions: **01 Exchange** (autonomous listings desk) and **14 Web3 Native & DeFi** (buy contract analysis before committing capital).

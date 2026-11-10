@@ -32,11 +32,13 @@ describe("FileStore", () => {
 
 // Runs only when a throwaway test database is provided: TEST_DATABASE_URL=postgres://... npm test
 describe.skipIf(!process.env.TEST_DATABASE_URL)("PgStore", () => {
-  it("round-trips memos and ledger against real Postgres", async () => {
-    const store = new PgStore(process.env.TEST_DATABASE_URL!);
+  it("round-trips memos and ledger against real Postgres", { timeout: 60_000 }, async () => {
+    // Throwaway tables, dropped afterwards: never touches the real vetted_* tables.
+    const store = new PgStore(process.env.TEST_DATABASE_URL!, `vetted_test_${Date.now().toString(36)}`);
     try {
       await exercise(store);
     } finally {
+      await store.dropTables();
       await store.close();
     }
   });

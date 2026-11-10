@@ -16,7 +16,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "bot": "tsx src/telegram/run.ts",
-    "serve": "node dist/server/index.js"
+    "serve": "node dist/server/index.js",
+    "migrate:pg": "tsx scripts/migrate-to-pg.ts"
   },
   "license": "MIT",
   "type": "module",

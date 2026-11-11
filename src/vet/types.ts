@@ -42,6 +42,10 @@ export interface Evidence {
   receiptHash?: string;
   txHash?: string;
   simulated: boolean;
+  /** True when this answer was bought earlier (by any user) and reused while still fresh: no new payment. */
+  reused?: boolean;
+  /** When a reused answer was originally bought. */
+  boughtAt?: string;
   error?: string;
   /** Trimmed copy of the miner answer, kept in the memo for audit. */
   answer?: unknown;

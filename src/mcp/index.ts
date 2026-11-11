@@ -55,12 +55,13 @@ server.registerTool(
       people: z.array(z.string()).max(3).optional().describe("listing: key people to sanctions-screen"),
       xHandle: z.string().optional(),
       website: z.string().optional(),
+      fresh: z.boolean().optional().describe("buy every answer fresh instead of reusing answers bought within their freshness window"),
     },
     annotations: { readOnlyHint: false, openWorldHint: true },
   },
   async (args) => {
     const app = validateApplication(args);
-    const memo = await vet(tg, app, undefined, Math.min(cfg.maxPerMemoUsd, session.remainingUsd));
+    const memo = await vet(tg, app, undefined, Math.min(cfg.maxPerMemoUsd, session.remainingUsd), { fresh: args.fresh });
     await memos.save(memo);
     return text(memoBrief(memo));
   },

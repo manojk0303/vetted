@@ -62,6 +62,24 @@ Vetted spends money autonomously, so spending is fenced in before anything is si
 - **Never escrow by accident:** the client never signs the escrow scheme implicitly.
 - **Per IP:** the web server rate-limits runs.
 
+### Cost model: buy once, serve everyone
+
+A naive agent pays for every signal on every decision, for every user who asks about the same thing: cost grows as *signals × users*. Vetted is built so that cost per decision falls as usage grows:
+
+- **Reuse while fresh.** Every bought answer is stored and reused by anyone who asks the same question within its freshness window: contract scan and supply 6 h, sanctions/social/website 24 h, holders 1 h, wash trading 15 min, liquidity 5 min. A reused answer keeps the original signal hash and settlement tx, so it still verifies. Pass `fresh: true` (or `--fresh`) to force new purchases, e.g. right before a trade.
+- **Share in-flight purchases.** Two users checking the same token at the same moment share one payment.
+- **Stop paying miners that are wrong.** Each majority vote updates a per-miner track record. A miner outvoted at least twice and wrong more often than right is skipped. Live example: `sentinel-risk-oracle`, ranked #1 for holder counts, was outvoted 8 of 8 times and is no longer bought. The board is public at `/api/miners/reliability` and on the home page.
+- **Second opinions only where they pay off.** Supply and holders stop as soon as two independent sources agree. Sanctions are always screened by two different miners, because a missed hit is the costliest error in a listing memo.
+
+Observed on testnet (Nov 2026), same PEPE listing check run twice in a row:
+
+| | Paid answers | Cost | Wall time |
+|---|---|---|---|
+| First check | 7 | $0.07 | 67 s |
+| Same token again | 0 (7 reused) | $0.00 | 10 s |
+
+Before the track records, about 42% of holder-count spend went to the miner that was always outvoted.
+
 ## Quickstart
 
 Requires Node 20+.
@@ -185,7 +203,7 @@ Miner IDs are never hard-coded. Vetted resolves them by slug and rank from `GET 
 ## Development
 
 ```bash
-npm test            # 29 tests: budget concurrency, receipt re-derivation against a real signal, memo tamper detection, verdict rules, quorum outlier handling, end-to-end simulated runs
+npm test            # 40 tests: budget concurrency, receipt re-derivation against a real signal, memo tamper detection, verdict rules, quorum outlier handling, end-to-end simulated runs
 npm run typecheck
 ```
 

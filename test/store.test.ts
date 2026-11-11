@@ -22,6 +22,22 @@ async function exercise(store: Store) {
   expect(await store.spentSinceUsd(Date.now() - 3600_000)).toBeCloseTo(0.01, 6);
   const last = await store.readLedger(2);
   expect(last.map((e) => e.status)).toEqual(["simulated", "paid"]);
+
+  // Reusable answers
+  expect(await store.getFact("live:abc")).toBeUndefined();
+  const ev = { ok: true, usable: true, costUsd: 0.01, durationMs: 5, simulated: false, minerSlug: "m1", signalHash: "0x01" };
+  await store.putFact("live:abc", { at: now, answer: { holders_count: 7 }, evidence: ev });
+  await store.putFact("live:abc", { at: now, answer: { holders_count: 8 }, evidence: ev }); // upsert
+  expect((await store.getFact("live:abc"))?.answer).toEqual({ holders_count: 8 });
+
+  // Miner track records
+  await store.recordMinerOutcome("HOLDERS", "m1", "agree");
+  await store.recordMinerOutcome("HOLDERS", "m1", "agree");
+  await store.recordMinerOutcome("HOLDERS", "m2", "disagree");
+  await store.recordMinerOutcome("HOLDERS", "m2", "unusable");
+  const stats = await store.minerStats();
+  expect(stats.find((s) => s.miner === "m1")).toMatchObject({ intent: "HOLDERS", agree: 2, disagree: 0, unusable: 0 });
+  expect(stats.find((s) => s.miner === "m2")).toMatchObject({ agree: 0, disagree: 1, unusable: 1 });
 }
 
 describe("FileStore", () => {

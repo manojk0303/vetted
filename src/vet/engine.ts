@@ -37,11 +37,16 @@ export function validateApplication(input: any): Application {
  * that need the contract scan (liquidity pool, supply cross-check, top-holder
  * concentration) start as soon as it lands.
  */
-export async function vet(tg: TelegraphClient, app: Application, emit: (e: VetEvent) => void = () => {}, budgetUsd?: number): Promise<Memo> {
+export interface VetOptions {
+  /** Buy every answer fresh instead of reusing answers bought within their freshness window. */
+  fresh?: boolean;
+}
+
+export async function vet(tg: TelegraphClient, app: Application, emit: (e: VetEvent) => void = () => {}, budgetUsd?: number, opts: VetOptions = {}): Promise<Memo> {
   const started = Date.now();
   const runId = randomUUID().slice(0, 12);
   const budget = tg.runBudget(budgetUsd);
-  const ctx: RunCtx = { tg, budget, runId, app, emit };
+  const ctx: RunCtx = { tg, budget, runId, app, emit, fresh: opts.fresh };
   emit({ type: "run", runId, app, simulated: tg.simulated, payer: tg.account?.address });
 
   const done = (f: Finding | undefined) => {
@@ -93,7 +98,8 @@ export async function vet(tg: TelegraphClient, app: Application, emit: (e: VetEv
     findings,
     cost: {
       totalUsd: Math.round(evidence.reduce((s, e) => s + e.costUsd, 0) * 1e6) / 1e6,
-      purchases: evidence.filter((e) => e.ok).length,
+      purchases: evidence.filter((e) => e.ok && !e.reused).length,
+      reused: evidence.filter((e) => e.reused && e.usable).length,
       usable: evidence.filter((e) => e.usable).length,
       unusable: evidence.filter((e) => e.ok && !e.usable).length,
       failed: evidence.filter((e) => !e.ok).length,

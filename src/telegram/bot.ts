@@ -100,7 +100,7 @@ export function formatMemo(m: Memo, publicUrl?: string): string {
     "",
     `<i>${esc(clip(v.reasons.join(" "), 400))}</i>`,
     "",
-    `💸 $${m.cost.totalUsd.toFixed(2)} · ${m.cost.purchases} paid checks · ${(m.durationMs / 1000).toFixed(0)}s${m.simulated ? " · <b>SIMULATED</b> (no real purchases)" : ""}`,
+    `💸 $${m.cost.totalUsd.toFixed(2)} · ${m.cost.purchases} new ${m.cost.purchases === 1 ? "purchase" : "purchases"}${m.cost.reused ? `, ${m.cost.reused} reused from earlier checks` : ""} ·${(m.durationMs / 1000).toFixed(0)}s${m.simulated ? " · <b>SIMULATED</b> (no real purchases)" : ""}`,
   ];
   if (notFound(m)) {
     lines.push("", `I couldn't find token data at this address on ${esc(CHAINS[m.application.chain].label)}. Is it on another chain? Try <code>/vet ${esc(m.application.token)} base</code> (or arbitrum, polygon, optimism, bsc).`);

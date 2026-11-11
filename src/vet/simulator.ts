@@ -24,7 +24,12 @@ export function fixtureSimulator(): Simulator {
   return async (req: AskRequest) => {
     const blob = JSON.stringify(req).toLowerCase();
     const risky = blob.includes(SIM_RISKY_TOKEN) || blob.includes("0x2222222222222222222222222222222222222222");
-    const sim = (result: unknown, slug: string) => ({ result, minerId: "sim", minerSlug: `${slug} (simulated)` });
+    // Direct asks are labelled with the miner actually asked, so cross-miner logic can be exercised offline.
+    const sim = (result: unknown, slug: string) => ({
+      result,
+      minerId: req.minerId ?? "sim",
+      minerSlug: `${req.minerId ? `miner-${req.minerId}` : slug} (simulated)`,
+    });
     switch (req.intent) {
       case "SMART_CONTRACT_AUDIT_GENERAL":
         return sim(risky ? rug : pepe, "goplus-security");

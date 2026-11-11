@@ -1,5 +1,5 @@
 import { bool, findKey, num, str, taxPct, toBool, toNum } from "../core/extract.js";
-import { auto, buy, directBySlug, topRanked, type RunCtx } from "./buy.js";
+import { applyTrust, auto, buy, directBySlug, record, topRanked, type RunCtx } from "./buy.js";
 import { CHAINS, type Finding, type Status } from "./types.js";
 
 const fmtUsd = (n: number) => (n >= 1e6 ? `$${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `$${(n / 1e3).toFixed(1)}k` : `$${n.toFixed(0)}`);
@@ -124,6 +124,10 @@ export async function checkContract(ctx: RunCtx): Promise<Finding & { contract?:
 export interface Reading {
   source: string;
   value: number;
+  /** Intent the reading was bought under (undefined for the contract scanner). */
+  intent?: string;
+  /** Reused from an earlier purchase: already counted in miner track records. */
+  reused?: boolean;
 }
 
 export interface Consensus {
@@ -179,10 +183,10 @@ async function buyQuorum(
   const evidence: Finding["evidence"] = [];
   const seen = new Set<string>();
   let paid = 0;
-  for (const a of attempts) {
+  for (const a of await applyTrust(ctx, attempts)) {
     if (paid >= maxPaid) break;
     if (readings.length >= 2 && consensus(readings, tolPct).majority && readings.length - (scanner !== undefined ? 1 : 0) >= 1) {
-      // A majority that includes at least one paid miner reading is enough.
+      // A majority that includes at least one miner reading is enough.
       break;
     }
     if (a.req.minerId && seen.has(a.req.minerId)) continue;
@@ -193,11 +197,19 @@ async function buyQuorum(
       if (seen.has(ev.minerId) && r.value !== undefined) continue; // auto-route landed on a miner we already counted
       seen.add(ev.minerId);
     }
-    if (ev?.ok) paid++;
-    if (r.value !== undefined) readings.push({ source: ev?.minerSlug ?? ev?.minerId ?? "miner", value: r.value });
+    if (ev?.ok && !ev.reused) paid++;
+    if (r.value !== undefined) readings.push({ source: ev?.minerSlug ?? ev?.minerId ?? "miner", value: r.value, intent: ev?.intent, reused: ev?.reused });
     if (ev?.error?.startsWith("budget")) break;
   }
-  return { readings, consensus: consensus(readings, tolPct), evidence };
+  const c = consensus(readings, tolPct);
+  if (c.majority) {
+    // Feed the vote back into each miner's track record (once per purchase, never for reused answers).
+    for (const r of readings) {
+      if (!r.intent || r.reused) continue;
+      await record(ctx, r.intent, r.source, c.agreeing.includes(r) ? "agree" : "disagree");
+    }
+  }
+  return { readings, consensus: c, evidence };
 }
 
 const describeOutliers = (c: Consensus, fmt: (n: number) => string) =>
@@ -351,31 +363,52 @@ export async function checkSanctions(ctx: RunCtx): Promise<Finding | undefined> 
   const names = [ctx.app.issuer, ...(ctx.app.people ?? [])].map((s) => s?.trim()).filter((s): s is string => !!s).slice(0, 3);
   if (!names.length) return undefined;
   const intent = "SANCTIONS_SCREENING_MATCH_GENERAL";
+  const extract = (a: unknown) => {
+    const m = toBool(findKey(a, ["matched", "match", "on_list", "is_match"]));
+    return m === undefined ? undefined : { matched: m, score: num(a, ["match_score", "score"]), summary: str(a, ["summary"]) };
+  };
+  // A missed sanctions hit is the costliest error in a listing memo, so every name is
+  // screened by two independent miners, in parallel, and any disagreement goes to a human.
   const results = await Promise.all(
     names.map(async (name) => {
-      const attempts = [
-        ...(await directBySlug(ctx, intent, "zk-sanctions", { intent, method: "GET", endpoint: "/screen", payload: { name } }, "OFAC/UK/EU/UN list screen via Telegraph")),
-        auto(intent, { name }),
-      ];
-      const r = await buy(ctx, "sanctions", attempts, (a) => {
-        const m = toBool(findKey(a, ["matched", "match", "on_list", "is_match"]));
-        return m === undefined ? undefined : { matched: m, score: num(a, ["match_score", "score"]), summary: str(a, ["summary"]) };
-      });
-      return { name, ...r };
+      const [first, second] = await Promise.all([
+        (async () => buy(ctx, "sanctions", [
+          ...(await directBySlug(ctx, intent, "zk-sanctions", { intent, method: "GET", endpoint: "/screen", payload: { name } }, "OFAC/UK/EU/UN list screen via Telegraph")),
+          auto(intent, { name }),
+        ], extract))(),
+        (async () => buy(ctx, "sanctions", await topRanked(ctx, intent, { name }, 6, ["zk-sanctions"]), extract))(),
+      ]);
+      const opinions = [first, second]
+        .map((r) => ({ miner: r.evidence.find((e) => e.usable)?.minerSlug ?? "miner", value: r.value }))
+        .filter((o): o is { miner: string; value: NonNullable<typeof o.value> } => o.value !== undefined);
+      // Two answers from the same miner are one opinion.
+      const distinct = opinions.filter((o, i) => opinions.findIndex((x) => x.miner === o.miner) === i);
+      return { name, opinions: distinct, evidence: [...first.evidence, ...second.evidence] };
     }),
   );
   const evidence = results.flatMap((r) => r.evidence);
-  const hits = results.filter((r) => r.value?.matched);
-  const unknown = results.filter((r) => !r.value);
   const label = "Sanctions screening";
+  const facts = { screened: names, opinions: results.map((r) => ({ name: r.name, opinions: r.opinions.map((o) => ({ miner: o.miner, matched: o.value.matched })) })) };
+
+  const hits = results.filter((r) => r.opinions.some((o) => o.value.matched));
   if (hits.length) {
-    return finding("sanctions", label, "fail", `Name alert for ${hits.map((h) => `"${h.name}"`).join(", ")}: ${(hits[0].value?.summary ?? "sanctions-list match").replace(/\.+$/, "")}. A name match needs identity review before any listing.`,
-      { screened: names, hits: hits.map((h) => h.name) }, evidence, ["REVIEW_SANCTIONS_MATCH"]);
+    const h = hits[0];
+    const yes = h.opinions.filter((o) => o.value.matched).map((o) => o.miner);
+    const no = h.opinions.filter((o) => !o.value.matched).map((o) => o.miner);
+    const summary = (h.opinions.find((o) => o.value.matched)?.value.summary ?? "sanctions-list match").replace(/\.+$/, "");
+    const dispute = no.length ? ` Miners disagree: ${yes.join(", ")} report a match, ${no.join(", ")} do not.` : ` Confirmed by ${yes.length} miner${yes.length > 1 ? "s" : ""}.`;
+    return finding("sanctions", label, "fail",
+      `Name alert for ${hits.map((x) => `"${x.name}"`).join(", ")}: ${summary}.${dispute} A name match needs identity review before any listing.`,
+      facts, evidence, no.length ? ["REVIEW_SANCTIONS_MATCH", "REVIEW_SANCTIONS_DISAGREEMENT"] : ["REVIEW_SANCTIONS_MATCH"]);
   }
-  if (unknown.length === results.length) return finding("sanctions", label, "unknown", "Sanctions screening could not be bought.", { screened: names }, evidence, ["REVIEW_SANCTIONS_UNSCREENED"]);
-  return finding("sanctions", label, unknown.length ? "warn" : "pass",
-    `${names.length - unknown.length}/${names.length} names screened, no list match${unknown.length ? `; ${unknown.map((u) => u.name).join(", ")} could not be screened` : ""}. A negative is not sanctions clearance.`,
-    { screened: names }, evidence);
+  const unscreened = results.filter((r) => r.opinions.length === 0);
+  if (unscreened.length === results.length) return finding("sanctions", label, "unknown", "Sanctions screening could not be bought.", facts, evidence, ["REVIEW_SANCTIONS_UNSCREENED"]);
+  const single = results.filter((r) => r.opinions.length === 1);
+  const parts = [`${names.length - unscreened.length}/${names.length} names screened, no list match`];
+  if (single.length) parts.push(`only one miner could screen ${single.map((r) => `"${r.name}"`).join(", ")}`);
+  else parts.push("each name confirmed by 2 independent miners");
+  if (unscreened.length) parts.push(`${unscreened.map((u) => `"${u.name}"`).join(", ")} could not be screened`);
+  return finding("sanctions", label, single.length || unscreened.length ? "warn" : "pass", `${parts.join("; ")}. A negative is not sanctions clearance.`, facts, evidence);
 }
 
 // ---------------------------------------------------------------- social authenticity

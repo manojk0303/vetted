@@ -143,6 +143,16 @@ details.more summary { cursor: pointer; font-size: 13px; color: var(--ink-2); }
 .recent .d { font: 600 12px var(--mono); }
 .recent .d.go { color: var(--go); } .recent .d.hold { color: var(--hold); } .recent .d.stop { color: var(--stop); }
 .recent .x { font: 12px var(--mono); color: var(--ink-3); }
+.tape li.re .m { color: var(--go); }
+.costline b small { font-size: 13px; color: var(--ink-3); }
+.board { margin-top: 30px; }
+.boardsub { margin: 0 0 8px; font-size: 13px; color: var(--ink-2); max-width: 640px; }
+.board li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) 140px; gap: 12px; padding: 8px 2px; border-bottom: 1px solid var(--rule-2); font-size: 13px; align-items: baseline; }
+.board .i { font: 12px var(--mono); color: var(--ink-3); overflow-wrap: anywhere; }
+.board .n { overflow-wrap: anywhere; }
+.board .r { font: 12px var(--mono); white-space: nowrap; text-align: right; }
+.board .r.bad { color: var(--stop); } .board .r.good { color: var(--go); }
+@media (max-width: 640px) { .board li { grid-template-columns: minmax(0, 1fr) auto; } .board .i { grid-column: 1 / -1; } }
 footer { color: var(--ink-3); font-size: 12.5px; padding: 0 20px 40px; text-align: center; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 </style>
@@ -206,6 +216,11 @@ footer { color: var(--ink-3); font-size: 12.5px; padding: 0 20px 40px; text-alig
     </div>
     <article class="card memo" id="memo" hidden></article>
     <div class="recent" id="recent" hidden><h3>Recent memos</h3><ul id="recentlist"></ul></div>
+    <div class="recent board" id="board" hidden>
+      <h3>Miner reliability</h3>
+      <p class="boardsub">From Vetted's own cross-checks: how often each miner agreed with the majority. Miners that keep getting outvoted are skipped, so nobody pays for their answers again.</p>
+      <ul id="boardlist"></ul>
+    </div>
   </section>
 </main>
 <footer>Vetted runs on the Telegraph testnet (Ethereum Sepolia). Test USDC only. A memo is decision support, not investment or legal advice.</footer>
@@ -283,14 +298,18 @@ function start(q) {
 }
 function finish() { es?.close(); $("#run").disabled = false; }
 
+const ago = (iso) => { const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000); return s < 90 ? `${Math.round(s)}s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : `${(s / 3600).toFixed(1)} h ago`; };
+
 function addTape({ check, evidence: e }) {
-  tape.n++; tape.cost += e.costUsd;
-  const cls = !e.ok ? "bad" : !e.usable ? "meh" : "";
+  if (e.reused) tape.reused = (tape.reused || 0) + 1; else if (e.ok) tape.n++;
+  tape.cost += e.costUsd;
+  const cls = !e.ok ? "bad" : !e.usable ? "meh" : e.reused ? "re" : "";
+  const what = !e.ok ? "refused, not charged" : !e.usable ? "unusable answer" : e.reused ? `reused${e.boughtAt ? ` (bought ${ago(e.boughtAt)})` : ""}` : "bought";
   const li = document.createElement("li");
   li.className = cls;
-  li.innerHTML = `<span class="k">${esc(check)}</span><span class="m" title="${esc(e.error || "")}">${e.ok ? (e.usable ? "bought" : "unusable answer") : "refused, not charged"} ← ${esc(e.minerSlug || e.intent || "")}${e.signalHash ? ` · ${esc(short(e.signalHash))}` : ""}</span><span class="c">${usd(e.costUsd)}</span><span class="c t">${e.durationMs}ms</span>`;
+  li.innerHTML = `<span class="k">${esc(check)}</span><span class="m" title="${esc(e.error || "")}">${what} ← ${esc(e.minerSlug || e.intent || "")}${e.signalHash ? ` · ${esc(short(e.signalHash))}` : ""}</span><span class="c">${usd(e.costUsd)}</span><span class="c t">${e.durationMs}ms</span>`;
   $("#tapelist").prepend(li);
-  $("#tapesum").textContent = `${tape.n} purchases · ${usd(tape.cost)}`;
+  $("#tapesum").textContent = `${tape.n} new · ${tape.reused || 0} reused · ${usd(tape.cost)}`;
 }
 
 function renderLive() {
@@ -302,13 +321,14 @@ function renderLive() {
 }
 
 function evidenceHtml(e) {
-  const tag = !e.ok ? `<span class="tag bad">refused · not charged</span>` : !e.usable ? `<span class="tag meh">unusable answer</span>` : `<span class="tag ok">used</span>`;
+  const tag = !e.ok ? `<span class="tag bad">refused · not charged</span>` : !e.usable ? `<span class="tag meh">unusable answer</span>`
+    : e.reused ? `<span class="tag ok">reused${e.boughtAt ? ` · bought ${esc(ago(e.boughtAt))}` : ""} · no new payment</span>` : `<span class="tag ok">used</span>`;
   const sig = e.signalHash ? `<br>signal <a href="${esc(node)}/engine/v1/signal/${esc(e.signalHash)}" target="_blank" rel="noopener">${esc(e.signalHash)}</a>` : "";
   const tx = e.txHash ? `<br>settlement <a href="https://sepolia.etherscan.io/tx/${esc(e.txHash)}" target="_blank" rel="noopener">${esc(short(e.txHash, 10))}</a>` : "";
   return `<li>${tag}${esc(e.intent || "")} → ${esc(e.minerSlug || "auto")}${e.minerId && e.minerId !== "sim" ? ` #${esc(e.minerId)}` : ""} · ${usd(e.costUsd)} · ${e.durationMs}ms${e.error ? `<br><span style="color:var(--ink-3)">${esc(e.error)}</span>` : ""}${sig}${tx}</li>`;
 }
 function findingHtml(f) {
-  return `<li><span class="ico ${f.status}" aria-label="${f.status}">${ICON[f.status]}</span><div><h4>${esc(f.label)}</h4><p>${esc(f.summary)}</p>${f.evidence.length ? `<details><summary>${f.evidence.length} purchase${f.evidence.length > 1 ? "s" : ""} · ${usd(f.evidence.reduce((s, e) => s + e.costUsd, 0))}</summary><ul class="ev">${f.evidence.map(evidenceHtml).join("")}</ul></details>` : ""}</div></li>`;
+  return `<li><span class="ico ${f.status}" aria-label="${f.status}">${ICON[f.status]}</span><div><h4>${esc(f.label)}</h4><p>${esc(f.summary)}</p>${f.evidence.length ? `<details><summary>${f.evidence.length} answer${f.evidence.length > 1 ? "s" : ""} ·${usd(f.evidence.reduce((s, e) => s + e.costUsd, 0))}</summary><ul class="ev">${f.evidence.map(evidenceHtml).join("")}</ul></details>` : ""}</div></li>`;
 }
 
 function renderMemo(m) {
@@ -328,7 +348,7 @@ function renderMemo(m) {
     <ul class="findings">${m.findings.map(findingHtml).join("")}</ul>
     <div class="costline">
       <div><b>${usd(m.cost.totalUsd)}</b><span>intelligence cost</span></div>
-      <div><b>${m.cost.purchases}</b><span>paid purchases</span></div>
+      <div><b>${m.cost.purchases}<small> / ${m.cost.reused ?? 0}</small></b><span>new / reused answers</span></div>
       <div><b>${m.cost.unusable + m.cost.failed}</b><span>unusable / failed</span></div>
       <div><b>${(m.durationMs / 1000).toFixed(1)}s</b><span>wall time</span></div>
     </div>
@@ -375,7 +395,21 @@ async function openMemo(id) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-loadStatus(); loadRecent();
+async function loadBoard() {
+  try {
+    const rows = (await (await fetch("/api/miners/reliability")).json()).filter((r) => r.total > 0);
+    if (!rows.length) return;
+    $("#board").hidden = false;
+    rows.sort((a, b) => Number(b.distrusted) - Number(a.distrusted) || b.total - a.total);
+    $("#boardlist").innerHTML = rows.slice(0, 14).map((r) => {
+      const pct = r.agreeRate == null ? "n/a" : `${Math.round(r.agreeRate * 100)}%`;
+      const label = r.distrusted ? `skipped · agreed ${pct}` : `agreed ${pct}`;
+      return `<li><span class="i">${esc(r.intent.replace(/_GENERAL$/, ""))}</span><span class="n">${esc(r.miner)} <span class="x">(${r.agree} agreed, ${r.disagree} outvoted, ${r.unusable} unusable)</span></span><span class="r ${r.distrusted ? "bad" : r.agreeRate >= 0.8 ? "good" : ""}">${label}</span></li>`;
+    }).join("");
+  } catch {}
+}
+
+loadStatus(); loadRecent(); loadBoard();
 const m = location.pathname.match(/^\/m\/([\w-]+)/); if (m) openMemo(m[1]);
 </script>
 </body>

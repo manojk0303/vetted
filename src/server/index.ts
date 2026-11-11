@@ -7,6 +7,7 @@ import { streamSSE } from "hono/streaming";
 import { bootstrap } from "../app.js";
 import { InvalidApplicationError, validateApplication, vet } from "../vet/engine.js";
 import { verifyMemo } from "../vet/memo.js";
+import { isDistrusted } from "../vet/buy.js";
 import { mountSell } from "./sell.js";
 import { randomBytes } from "node:crypto";
 import { TelegramBot } from "../telegram/bot.js";
@@ -59,7 +60,7 @@ app.get("/api/vet/stream", (c) => {
     try {
       const memo = await vet(tg, application, (e) => {
         queue.push(stream.writeSSE({ event: e.type, data: JSON.stringify(e) }));
-      });
+      }, undefined, { fresh: q.fresh === "1" });
       await memos.save(memo);
     } catch (e) {
       queue.push(stream.writeSSE({ event: "error", data: JSON.stringify({ type: "error", message: (e as Error).message }) }));
@@ -70,14 +71,15 @@ app.get("/api/vet/stream", (c) => {
 
 /** Plain JSON API for scripts and agents (free to the caller; the operator's wallet pays Telegraph). */
 app.post("/api/vet", async (c) => {
-  let application;
+  let application, body: any;
   try {
-    application = validateApplication(await c.req.json());
+    body = await c.req.json();
+    application = validateApplication(body);
   } catch (e) {
     return c.json({ error: e instanceof InvalidApplicationError ? e.message : "invalid JSON body" }, 400);
   }
   if (!allowRun(clientIp(c))) return c.json({ error: `rate limit: ${RUNS_PER_HOUR} runs per hour` }, 429);
-  const memo = await vet(tg, application);
+  const memo = await vet(tg, application, undefined, undefined, { fresh: body?.fresh === true });
   await memos.save(memo);
   return c.json(memo);
 });
@@ -94,6 +96,21 @@ app.get("/api/memos/:id/verify", async (c) => {
 /** Verify a memo someone hands you (it need not have been produced by this server). */
 app.post("/api/verify", async (c) => c.json(await verifyMemo(await c.req.json(), cfg.nodeUrl)));
 app.get("/api/ledger", async (c) => c.json((await tg.ledger.read(200)).reverse()));
+/**
+ * Miner reliability board: how often each miner agreed with the majority in Vetted's
+ * own cross-checks. Built only from real (non-simulated) purchases.
+ */
+app.get("/api/miners/reliability", async (c) => {
+  const stats = await store.minerStats();
+  return c.json(
+    stats
+      .map((s) => {
+        const total = s.agree + s.disagree + s.unusable;
+        return { ...s, total, agreeRate: total ? s.agree / total : null, distrusted: isDistrusted(s) };
+      })
+      .sort((a, b) => a.intent.localeCompare(b.intent) || (b.agreeRate ?? 0) - (a.agreeRate ?? 0)),
+  );
+});
 /** Liveness probe for the host (and for an uptime pinger that keeps a free instance awake). */
 app.get("/healthz", (c) => c.json({ ok: true, storage: store.kind }));
 

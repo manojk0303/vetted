@@ -54,14 +54,16 @@ export async function mountSell(app: Hono, tg: TelegraphClient, memos: MemoStore
   );
 
   app.post("/x402/vet", async (c) => {
-    let application;
+    let application, body: any;
     try {
-      application = validateApplication(await c.req.json());
+      body = await c.req.json();
+      application = validateApplication(body);
     } catch (e) {
       // 4xx responses are not settled by the middleware, so the buyer is not charged.
       return c.json({ error: e instanceof InvalidApplicationError ? e.message : "invalid JSON body" }, 400);
     }
-    const memo = await vet(tg, application);
+    // Answers still within their freshness window are reused; pass {"fresh": true} to force new purchases.
+    const memo = await vet(tg, application, undefined, undefined, { fresh: body?.fresh === true });
     if (memo.cost.usable === 0) return c.json({ error: "no usable intelligence could be bought; you were not charged", memo }, 502);
     await memos.save(memo);
     return c.json(memo);

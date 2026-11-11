@@ -17,7 +17,17 @@ export interface Memo {
   token: { name?: string; symbol?: string };
   verdict: Verdict;
   findings: Finding[];
-  cost: { totalUsd: number; purchases: number; usable: number; unusable: number; failed: number; budgetUsd: number };
+  cost: {
+    totalUsd: number;
+    /** New paid purchases made for this memo. */
+    purchases: number;
+    /** Answers reused from earlier purchases (no new payment; original receipts still verify). Absent on older memos. */
+    reused?: number;
+    usable: number;
+    unusable: number;
+    failed: number;
+    budgetUsd: number;
+  };
   durationMs: number;
   payer?: string;
   /** keccak256 of the canonical memo body (everything except `digest`, `signer`, `signature`). */

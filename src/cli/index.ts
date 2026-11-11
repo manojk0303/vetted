@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * vetted <token> [--chain ethereum] [--mode listing|pretrade] [--issuer "Acme Ltd"] [--people "A,B"]
- *        [--x handle] [--website example.com] [--trade 5000] [--budget 0.4] [--json] [--simulate]
+ *        [--x handle] [--website example.com] [--trade 5000] [--budget 0.4] [--fresh] [--json] [--simulate]
  * vetted verify <memo.json>
  */
 import fs from "node:fs";
@@ -47,9 +47,9 @@ async function main() {
     if (json) return;
     if (e.type === "attempt") {
       const ev = e.evidence;
-      console.error(`  ${c.d}${ev.usable ? "bought" : ev.ok ? "unusable" : "failed"} ${e.check} ← ${ev.minerSlug ?? ev.intent} $${ev.costUsd.toFixed(3)} ${ev.durationMs}ms${ev.error ? ` (${ev.error})` : ""}${c.x}`);
+      console.error(`  ${c.d}${ev.reused && ev.usable ? "reused" : ev.usable ? "bought" : ev.ok ? "unusable" : "failed"} ${e.check} ← ${ev.minerSlug ?? ev.intent} $${ev.costUsd.toFixed(3)} ${ev.durationMs}ms${ev.error ? ` (${ev.error})` : ""}${c.x}`);
     }
-  }, flag("budget") ? Number(flag("budget")) : undefined);
+  }, flag("budget") ? Number(flag("budget")) : undefined, { fresh: has("fresh") });
   await memos.save(memo);
   await store.close();
 
@@ -62,7 +62,7 @@ async function main() {
   console.log(`\n${c.b}${memo.token.name ?? ""} ${memo.token.symbol ? `(${memo.token.symbol})` : ""}${c.x}  ${col}${c.b}${v.decision}${c.x}  score ${v.score}/100`);
   for (const f of memo.findings) console.log(`  ${icon[f.status]} ${c.b}${f.label}${c.x}: ${f.summary}`);
   console.log(`\n  ${v.reasons.join(" ")}`);
-  console.log(`  ${c.d}cost $${memo.cost.totalUsd.toFixed(3)} · ${memo.cost.purchases} purchases (${memo.cost.unusable} unusable) · ${(memo.durationMs / 1000).toFixed(1)}s · memo ${memo.id} (${store.kind})${c.x}`);
+  console.log(`  ${c.d}cost $${memo.cost.totalUsd.toFixed(3)} · ${memo.cost.purchases} new purchases, ${memo.cost.reused ?? 0} reused (${memo.cost.unusable} unusable) · ${(memo.durationMs / 1000).toFixed(1)}s · memo ${memo.id} (${store.kind})${c.x}`);
   if (memo.signature) console.log(`  ${c.d}signed by ${memo.signer} · digest ${memo.digest}${c.x}`);
 }
 

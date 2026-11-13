@@ -67,7 +67,7 @@ export async function vet(tg: TelegraphClient, app: Application, emit: (e: VetEv
   start("wash", "Wash-trading signals");
   tasks.push(checkWash(ctx).then(done));
   if (listing) {
-    start("supply", "Supply verification (quorum)");
+    start("supply", "Supply verification");
     tasks.push(contractP.then((c) => checkSupply(ctx, c.contract)).then(done));
     if (app.issuer || app.people?.length) {
       start("sanctions", "Sanctions screening");

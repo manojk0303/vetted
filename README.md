@@ -1,8 +1,8 @@
 # Vetted
 
-**An autonomous token-diligence desk. Every check is bought from ranked Telegraph miners, receipted, and independently verifiable.**
+**An autonomous token-diligence desk. Every check is bought through Telegraph's router, receipted, and independently verifiable.**
 
-Paste a token contract. Vetted buys contract security, holder, supply, liquidity, wash-trading, sanctions and reputation intelligence from competing miners on the [Telegraph](https://telegraphprotocol.com) network, cross-checks them, and writes a signed **LIST / REVIEW / REJECT** memo with a cost line. A full memo takes about 30 seconds and costs about $0.10.
+Paste a token contract. Vetted buys contract security, holder, supply, liquidity, wash-trading, sanctions and reputation intelligence on the [Telegraph](https://telegraphprotocol.com) network, one routed answer per question, sanity-checks each answer against what it already knows, and writes a signed **LIST / REVIEW / REJECT** memo with a cost line. A first check of a token costs about $0.06; a repeat check within the freshness window costs close to nothing.
 
 The same engine runs in a second mode for trading agents: **ALLOW / CAUTION / BLOCK** before a swap, with a maximum trade size derived from verified liquidity.
 
@@ -23,10 +23,10 @@ Vetted turns that first pass into a machine purchase:
 | | Analyst first pass | Single vendor API | **Vetted** |
 |---|---|---|---|
 | Time | hours | seconds | ~30 s |
-| Marginal cost | analyst time | subscription | ~$0.10, itemised |
-| Sources | whatever the analyst checks | one | several competing miners per fact |
+| Marginal cost | analyst time | subscription | ~$0.06 first check, ~$0 repeats, itemised |
+| Sources | whatever the analyst checks | one vendor | the best-ranked Telegraph miner per question, re-ranked continuously by the network |
 | Evidence | notes | none | a receipt per claim, re-derivable by anyone |
-| Disagreement between sources | rarely noticed | invisible | flagged in the memo |
+| Bad answers | rarely noticed | invisible | flagged in the memo and reported back with the receipt |
 
 ## How it works
 
@@ -35,20 +35,20 @@ Application (token, chain, optional issuer / people / X handle / website)
         │
         ▼
   ┌───────────────────────────── Vetted engine ─────────────────────────────┐
-  │ contract scan ──┬─► liquidity (pool from the scan, verified separately)  │
-  │  (GoPlus miner) ├─► holders + top-10 concentration                       │
-  │                 └─► supply QUORUM (2+ independent miners + scanner)      │
-  │ wash-trading (live Transfer-log scan)   sanctions (OFAC/UK/EU/UN lists)  │
-  │ social bot detection   website safety + TLS                              │
+  │ contract scan ──┬─► liquidity (pool from the scan)                      │
+  │                 ├─► holders  (compared with the scan, no extra purchase) │
+  │                 └─► supply   (compared with the scan, no extra purchase) │
+  │ wash trading     sanctions (per name)     social     website + TLS       │
   └───────────────┬─────────────────────────────────────────────────────────┘
-                  │  each box = POST /engine/v1/ask → 402 → x402 payment → answer + signal_hash
+                  │  each box = one routed POST /engine/v1/ask → 402 → x402 → answer + signal_hash
+                  │  (a fresh answer bought earlier by anyone is reused instead of re-bought)
                   ▼
         verdict rules ─► signed memo (EIP-191) ─► anyone can verify
 ```
 
-1. **Buy.** Each check is a paid machine-to-machine request to the Telegraph Engine. Vetted sends a canonical `intent + params` request where a schema exists (the node validates it *before* charging), or a direct ask to a specific miner it trusts for structured output. Payment is per call over x402 (EIP-3009, gasless for the payer).
-2. **Cross-check.** Deterministic facts such as total supply are bought from several miners and compared. Liquidity and holder counts are compared against the contract scanner. Disagreements become warnings, not silent averages.
-3. **Fail over, visibly.** If a miner returns an answer that doesn't contain the needed fields, Vetted shows it on the memo as an *unusable answer* and buys from the next-ranked miner. Bad supply stays visible.
+1. **Buy, routed.** Each question is one paid machine-to-machine request to the Telegraph Engine as a canonical `intent + params` request (the node validates it *before* charging). Telegraph picks the miner from its own evaluations and rankings; Vetted does not pin, poll or vote across miners. Payment is per call over x402 (EIP-3009, gasless for the payer).
+2. **Sanity-check without buying more.** Holder count and total supply are compared with the contract scan Vetted already paid for. A sanctions "no match" only counts if the answer shows what was screened (the name, the lists or a score). A mismatch becomes a warning in the memo, never a silent average.
+3. **Report bad answers back.** An unusable or contradictory answer is shown on the memo and stored as a quality report with its signal hash (`GET /api/quality-reports`, and "Answers we flagged" on the home page). These are evidence for Telegraph's evaluation material and bounty reports, so the network's ranking improves instead of every app routing around bad miners on its own. A second routed attempt is made only when the first answer is unusable.
 4. **Decide.** Transparent rules ([src/vet/verdict.ts](src/vet/verdict.ts)): hard stops (honeypot, punitive tax, malicious website), mandatory human review (sanctions name match, owner can rewrite balances, supply disagreement), then a weighted score.
 5. **Prove.** The memo is hashed and signed by the agent wallet. Every finding links to the Telegraph `signal_hash` it was based on. `verify` recomputes each hash locally with keccak256 over the canonical payload, so it doesn't rely on the node's own `verified` flag.
 
@@ -62,23 +62,27 @@ Vetted spends money autonomously, so spending is fenced in before anything is si
 - **Never escrow by accident:** the client never signs the escrow scheme implicitly.
 - **Per IP:** the web server rate-limits runs.
 
-### Cost model: buy once, serve everyone
+### Cost model: one purchase per question, then reuse
 
-A naive agent pays for every signal on every decision, for every user who asks about the same thing: cost grows as *signals × users*. Vetted is built so that cost per decision falls as usage grows:
+A naive agent pays for every signal on every decision, for every user, and a "cross-check everything" agent multiplies that again by the number of miners it polls. Vetted's cost is *questions*, not *questions × miners*, and it falls as usage grows:
 
+- **One routed answer per question.** Quality is Telegraph's job (evaluations and rankings), so Vetted never buys the same fact twice to vote on it. The single exception is below.
 - **Reuse while fresh.** Every bought answer is stored and reused by anyone who asks the same question within its freshness window: contract scan and supply 6 h, sanctions/social/website 24 h, holders 1 h, wash trading 15 min, liquidity 5 min. A reused answer keeps the original signal hash and settlement tx, so it still verifies. Pass `fresh: true` (or `--fresh`) to force new purchases, e.g. right before a trade.
 - **Share in-flight purchases.** Two users checking the same token at the same moment share one payment.
-- **Stop paying miners that are wrong.** Each majority vote updates a per-miner track record. A miner outvoted at least twice and wrong more often than right is skipped. Live example: `sentinel-risk-oracle`, ranked #1 for holder counts, was outvoted 8 of 8 times and is no longer bought. The board is public at `/api/miners/reliability` and on the home page.
-- **Second opinions only where they pay off.** Supply and holders stop as soon as two independent sources agree. Sanctions are always screened by two different miners, because a missed hit is the costliest error in a listing memo.
 
-Observed on testnet (Nov 2026), same PEPE listing check run twice in a row:
+**The one pinned ask.** `SMART_CONTRACT_AUDIT_GENERAL` has no response format yet, so Telegraph cannot evaluate or rank its miners. A routed question there was answered by a general LLM with "no findings" without reading the contract. Until the intent is rankable, Vetted asks `goplus-security` (structured honeypot/tax/owner flags) directly through the engine, one call, with a routed fallback. This is the only pinned miner.
+
+Observed on testnet, 13 Nov 2026, PEPE listing check with one sanctions name (memo `2026-11-13-b11dd48e-034`):
 
 | | Paid answers | Cost | Wall time |
 |---|---|---|---|
-| First check | 7 | $0.07 | 67 s |
-| Same token again | 0 (7 reused) | $0.00 | 10 s |
+| First check (`--fresh`) | 7 (6 questions + 1 retry after an unusable answer) | $0.07 | 44 s |
+| Same token again | 0 (6 reused, receipts intact) | $0.00 | 6 s |
 
-Before the track records, about 42% of holder-count spend went to the miner that was always outvoted.
+The same run shows what the sanity checks are for. Two routed answers were wrong, and both were caught without buying a second opinion:
+
+- **Sanctions:** the first answer for "Lazarus Group" was `matched: false` with name, lists and score all null. Vetted refused to treat it as clearance and asked again; the second answer reported the OFAC match.
+- **Supply:** the routed supply miner returned 122,215,669 for PEPE (true supply ≈ 420.69 trillion). It disagreed with the on-chain contract scan, so the memo used the on-chain figure and filed a quality report.
 
 ## Quickstart
 
@@ -156,7 +160,7 @@ In groups the bot only runs on explicit commands, so ordinary chatter never spen
 | `GET /api/vet/stream?token=…` | Same, as server-sent events (`run`, `check:start`, `attempt`, `check:done`, `memo`) |
 | `GET /api/memos/:id/verify` | Independent verification report |
 | `POST /api/verify` | Verify a memo you were handed (it doesn't have to come from this server) |
-| `POST /x402/vet` | **Machine-to-machine sale.** Other agents pay Vetted $0.25 test USDC over x402 for a memo. Vetted then pays Telegraph miners about $0.10 to produce it. 4xx/5xx responses are never settled. |
+| `POST /x402/vet` | **Machine-to-machine sale.** Other agents pay Vetted $0.25 test USDC over x402 for a memo. Vetted then pays Telegraph about $0.06 to produce it (less when answers are reused). 4xx/5xx responses are never settled. |
 
 ### A second agent buying from Vetted
 
@@ -171,16 +175,16 @@ BUYER_PRIVATE_KEY=0x... VETTED_URL=http://localhost:8787 npx tsx examples/buyer-
 
 | Check | Intent | How it is bought |
 |---|---|---|
-| Contract security | `SMART_CONTRACT_AUDIT_GENERAL` | direct ask to `goplus-security` (structured flags), auto-route fallback |
-| Holders | `TOKEN_HOLDER_COUNT_GENERAL` | canonical params `{token, chain}`, auto-routed, then ranked fallback |
-| Supply | `TOKEN_TOTAL_SUPPLY_VERIFY_GENERAL` | quorum across top-ranked miners, max 3 paid attempts |
-| Liquidity | `LIQUIDITY_DEPTH_VERIFY_GENERAL` | canonical `{pool, chain}`, pool taken from the contract scan |
-| Wash trading | `WASH_TRADING_DETECTION_GENERAL` | direct `verifywire-wash-trading` Transfer-log scan, auto fallback |
-| Sanctions | `SANCTIONS_SCREENING_MATCH_GENERAL` | direct `zk-sanctions`, auto fallback, one purchase per name |
-| Community | `SOCIAL_BOT_DETECTION_GENERAL` | canonical `{account}` |
-| Website | `URL_SAFE_GENERAL`, `URL_SCAN_VERDICT`, `SSL_VERIFICATION_CERT` | canonical params |
+| Contract security | `SMART_CONTRACT_AUDIT_GENERAL` | pinned to `goplus-security` through the engine (intent has no response format yet, so it cannot be ranked), routed fallback |
+| Holders | `TOKEN_HOLDER_COUNT_GENERAL` | routed, canonical `{token, chain}`; compared with the contract scan |
+| Supply | `TOKEN_TOTAL_SUPPLY_VERIFY_GENERAL` | routed, canonical `{token}`; compared with the contract scan |
+| Liquidity | `LIQUIDITY_DEPTH_VERIFY_GENERAL` | routed, canonical `{pool, chain}`, pool taken from the contract scan |
+| Wash trading | `WASH_TRADING_DETECTION_GENERAL` | routed, canonical `{subject}` |
+| Sanctions | `SANCTIONS_SCREENING_MATCH_GENERAL` | routed, canonical `{name}`, one purchase per name; a bare "no match" is not trusted |
+| Community | `SOCIAL_BOT_DETECTION_GENERAL` | routed, canonical `{account}` |
+| Website | `URL_SAFE_GENERAL`, `URL_SCAN_VERDICT`, `SSL_VERIFICATION_CERT` | routed, canonical params |
 
-Miner IDs are never hard-coded. Vetted resolves them by slug and rank from `GET /api/miners` at run time, because IDs change between epochs.
+The pinned contract-scan miner is resolved by slug from `GET /api/miners` at run time, because IDs change between epochs.
 
 ## Limits and honest caveats
 
@@ -197,13 +201,14 @@ Miner IDs are never hard-coded. Vetted resolves them by slug and rank from `GET 
 | `SIMULATED` banner | No `EVM_PRIVATE_KEY` in `.env`, or `VETTED_SIMULATE=1` |
 | `budget exceeded (daily)` | Raise `VETTED_MAX_PER_DAY_USD` or wait. Spend from the last 24h is read from the ledger |
 | `Crypto API not available` | Use Node 20+ |
-| A check shows *refused, not charged* | The node rejected that miner before payment (incompatible params or no miner). Vetted moves to the next one |
+| A check shows *refused, not charged* | The node rejected the request before payment (incompatible params or no miner) |
+| A check shows *unusable answer* | The routed miner's answer lacked the needed fields. It is listed under "Answers we flagged" with its receipt, and one more routed attempt is made |
 | `wallet:mint` fails | The wallet needs a little Sepolia ETH for gas. Paying for intelligence itself is gasless |
 
 ## Development
 
 ```bash
-npm test            # 40 tests: budget concurrency, receipt re-derivation against a real signal, memo tamper detection, verdict rules, quorum outlier handling, end-to-end simulated runs
+npm test            # budget concurrency, receipt re-derivation against a real signal, memo tamper detection, verdict rules, routing (one purchase per question), reuse, end-to-end simulated runs
 npm run typecheck
 ```
 

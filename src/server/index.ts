@@ -7,7 +7,6 @@ import { streamSSE } from "hono/streaming";
 import { bootstrap } from "../app.js";
 import { InvalidApplicationError, validateApplication, vet } from "../vet/engine.js";
 import { verifyMemo } from "../vet/memo.js";
-import { isDistrusted } from "../vet/buy.js";
 import { mountSell } from "./sell.js";
 import { randomBytes } from "node:crypto";
 import { TelegramBot } from "../telegram/bot.js";
@@ -97,20 +96,11 @@ app.get("/api/memos/:id/verify", async (c) => {
 app.post("/api/verify", async (c) => c.json(await verifyMemo(await c.req.json(), cfg.nodeUrl)));
 app.get("/api/ledger", async (c) => c.json((await tg.ledger.read(200)).reverse()));
 /**
- * Miner reliability board: how often each miner agreed with the majority in Vetted's
- * own cross-checks. Built only from real (non-simulated) purchases.
+ * Quality reports: real routed answers that failed Vetted's sanity checks, each with
+ * its signal hash. Vetted does not rank miners (Telegraph does); these are published
+ * as material for Telegraph's evaluations and bounty reports.
  */
-app.get("/api/miners/reliability", async (c) => {
-  const stats = await store.minerStats();
-  return c.json(
-    stats
-      .map((s) => {
-        const total = s.agree + s.disagree + s.unusable;
-        return { ...s, total, agreeRate: total ? s.agree / total : null, distrusted: isDistrusted(s) };
-      })
-      .sort((a, b) => a.intent.localeCompare(b.intent) || (b.agreeRate ?? 0) - (a.agreeRate ?? 0)),
-  );
-});
+app.get("/api/quality-reports", async (c) => c.json(await store.listQualityReports(100)));
 /** Liveness probe for the host (and for an uptime pinger that keeps a free instance awake). */
 app.get("/healthz", (c) => c.json({ ok: true, storage: store.kind }));
 

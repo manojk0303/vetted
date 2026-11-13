@@ -5,7 +5,7 @@
  *
  * What it adds over a raw Telegraph client: hard per-call / per-session / per-day
  * spend caps enforced before signing, an append-only receipt ledger, independent
- * receipt verification, and quorum-checked token diligence.
+ * receipt verification, and routed, receipted token diligence.
  *
  *   claude mcp add vetted -- npx tsx /path/to/vetted/src/mcp/index.ts
  */
@@ -45,7 +45,7 @@ server.registerTool(
   {
     title: "Token diligence memo",
     description:
-      "Run Vetted diligence on an ERC-20 token. Buys contract-security, holder, supply (quorum), liquidity, wash-trading and optional sanctions/social/website checks from ranked Telegraph miners and returns a signed verdict. mode=listing gives LIST/REVIEW/REJECT for an exchange listing; mode=pretrade gives ALLOW/CAUTION/BLOCK plus a max trade size before an agent swaps. Costs roughly $0.04-$0.15 of test USDC.",
+      "Run Vetted diligence on an ERC-20 token. Buys contract-security, holder, supply, liquidity, wash-trading and optional sanctions/social/website checks through Telegraph routing (one answer per question) and returns a signed verdict. mode=listing gives LIST/REVIEW/REJECT for an exchange listing; mode=pretrade gives ALLOW/CAUTION/BLOCK plus a max trade size before an agent swaps. Costs roughly $0.05-$0.10 of test USDC on a first check, near zero on repeats.",
     inputSchema: {
       token: z.string().describe("0x-prefixed token contract address"),
       chain: z.enum(Object.keys(CHAINS) as [string, ...string[]]).default("ethereum"),

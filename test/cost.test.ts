@@ -3,8 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadConfig } from "../src/core/config.js";
-import { TelegraphClient, type AskRequest, type Simulator } from "../src/core/telegraph.js";
-import { applyTrust, auto, isDistrusted, type RunCtx } from "../src/vet/buy.js";
+import { TelegraphClient, type Simulator } from "../src/core/telegraph.js";
+import { reportQuality, type RunCtx } from "../src/vet/buy.js";
+import { FileStore } from "../src/core/store.js";
 import { validateApplication, vet } from "../src/vet/engine.js";
 import { fixtureSimulator, SIM_RISKY_TOKEN } from "../src/vet/simulator.js";
 
@@ -76,55 +77,67 @@ describe("buy once, reuse for everyone", () => {
   });
 });
 
-describe("miner track records", () => {
-  it("treats a miner as distrusted only after repeated losses", () => {
-    expect(isDistrusted({ intent: "X", miner: "m", agree: 0, disagree: 1, unusable: 0, updatedAt: "" })).toBe(false);
-    expect(isDistrusted({ intent: "X", miner: "m", agree: 0, disagree: 2, unusable: 0, updatedAt: "" })).toBe(true);
-    expect(isDistrusted({ intent: "X", miner: "m", agree: 5, disagree: 2, unusable: 0, updatedAt: "" })).toBe(false);
+describe("routing: Telegraph picks the miner", () => {
+  it("every schema'd question is one routed ask with no pinned miner", async () => {
+    const asked: { intent?: string; minerId?: string }[] = [];
+    const base = fixtureSimulator();
+    const tg = client(async (req) => {
+      asked.push({ intent: req.intent, minerId: req.minerId });
+      return base(req);
+    });
+    await vet(tg, validateApplication({ token: PEPE, issuer: "Example Holdings" }));
+    const pinned = asked.filter((a) => a.minerId);
+    // Only the contract scan is pinned (its intent has no response format, so it cannot be ranked yet).
+    expect(pinned.map((a) => a.intent)).toEqual(["SMART_CONTRACT_AUDIT_GENERAL"]);
+    // One purchase per question: no quorum, no second opinions on usable answers.
+    const perIntent = new Map<string, number>();
+    for (const a of asked) perIntent.set(a.intent!, (perIntent.get(a.intent!) ?? 0) + 1);
+    expect([...perIntent.values()].every((n) => n === 1)).toBe(true);
   });
 
-  it("skips direct asks to distrusted miners and tries auto-routing last", async () => {
-    const tg = client();
-    for (let i = 0; i < 3; i++) await tg.store.recordMinerOutcome("HOLDERS", "supply-a", "disagree");
-    const ctx = { tg } as RunCtx;
-    const attempts = [auto("HOLDERS", { a: 1 }), { req: { intent: "HOLDERS", params: { a: 1 }, minerId: "4" }, why: "supply-a" }, { req: { intent: "HOLDERS", params: { a: 1 }, minerId: "5" }, why: "txlens" }];
-    const ordered = await applyTrust(ctx, attempts);
-    expect(ordered.map((a) => a.why)).toEqual(["txlens", attempts[0].why]);
-  });
-
-  it("leaves order alone when nobody is distrusted", async () => {
-    const tg = client();
-    const attempts = [auto("HOLDERS", {}), { req: { intent: "HOLDERS", minerId: "4" } as AskRequest, why: "supply-a" }];
-    expect(await applyTrust({ tg } as RunCtx, attempts)).toEqual(attempts);
+  it("bad routed answers become quality reports with their receipt, never re-rankings", async () => {
+    const store = new FileStore(fs.mkdtempSync(path.join(os.tmpdir(), "vetted-qr-")));
+    const ctx = { tg: { simulated: false, store } } as unknown as RunCtx;
+    const ev = { ok: true, usable: false, costUsd: 0.01, durationMs: 5, simulated: false, intent: "X", minerSlug: "m1", signalHash: "0xabc" };
+    await reportQuality(ctx, "holders", ev, { token: "0x1" }, "answer did not contain the fields the question needs");
+    await reportQuality(ctx, "holders", { ...ev, reused: true }, {}, "reused answers are never reported twice");
+    const reports = await store.listQualityReports(10);
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toMatchObject({ check: "holders", minerSlug: "m1", signalHash: "0xabc" });
   });
 });
 
-describe("sanctions: two independent miners per name", () => {
-  const sanctionsSim = (matchedByMiner: Record<string, boolean>): Simulator => {
+describe("sanctions: one routed screen per name", () => {
+  const sanctionsSim = (answer: (name: string) => unknown): Simulator => {
     const base = fixtureSimulator();
     return async (req) => {
       if (req.intent !== "SANCTIONS_SCREENING_MATCH_GENERAL") return base(req);
-      const id = req.minerId ?? "auto";
-      const matched = matchedByMiner[id] ?? false;
-      return { result: { name: "x", matched, summary: matched ? "x: OFAC SDN match" : "x: no match" }, minerId: id, minerSlug: `miner-${id}` };
+      const name = String((req.params as any)?.name ?? "Example Holdings");
+      return { result: answer(name), minerId: "7", minerSlug: "routed-screen" };
     };
   };
 
-  it("flags a disagreement for human review", async () => {
-    const tg = client(sanctionsSim({ "3": true })); // zk-sanctions says match, the second miner says no
+  it("a match goes to human review", async () => {
+    const tg = client(sanctionsSim((name) => ({ name, matched: true, lists: ["OFAC SDN"], summary: `${name}: OFAC SDN match` })));
     const memo = await vet(tg, validateApplication({ token: PEPE, issuer: "Example Holdings" }));
-    const f = memo.findings.find((x) => x.check === "sanctions")!;
-    expect(f.status).toBe("fail");
-    expect(memo.verdict.flags).toEqual(expect.arrayContaining(["REVIEW_SANCTIONS_MATCH", "REVIEW_SANCTIONS_DISAGREEMENT"]));
-    expect(f.summary).toContain("Miners disagree");
+    expect(memo.findings.find((x) => x.check === "sanctions")!.status).toBe("fail");
+    expect(memo.verdict.flags).toContain("REVIEW_SANCTIONS_MATCH");
     expect(memo.verdict.decision).not.toBe("LIST");
   });
 
-  it("passes only when two different miners both say no match", async () => {
-    const tg = client(sanctionsSim({}));
+  it("a negative that shows what was screened passes", async () => {
+    const tg = client(sanctionsSim((name) => ({ name, matched: false, lists: ["OFAC SDN", "UN"], match_score: 0.1 })));
     const memo = await vet(tg, validateApplication({ token: PEPE, issuer: "Example Holdings" }));
+    expect(memo.findings.find((x) => x.check === "sanctions")!.status).toBe("pass");
+  });
+
+  it("a bare 'no match' with nothing screened is not trusted", async () => {
+    // Shape observed live for "Lazarus Group": matched false, everything else null.
+    const tg = client(sanctionsSim(() => ({ name: null, matched: false, matches: null, lists: null, match_score: null })));
+    const memo = await vet(tg, validateApplication({ token: PEPE, issuer: "Lazarus Group" }));
     const f = memo.findings.find((x) => x.check === "sanctions")!;
-    expect(f.status).toBe("pass");
-    expect(f.summary).toContain("confirmed by 2 independent miners");
+    expect(f.status).toBe("unknown");
+    expect(memo.verdict.flags).toContain("REVIEW_SANCTIONS_UNSCREENED");
+    expect(memo.verdict.decision).not.toBe("LIST");
   });
 });

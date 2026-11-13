@@ -118,18 +118,3 @@ describe("end-to-end (simulated)", () => {
     expect((await tg.ledger.read()).every((e) => e.status === "budget_blocked")).toBe(true);
   });
 });
-
-describe("consensus", async () => {
-  const { consensus } = await import("../src/vet/checks.js");
-  it("sets aside a single confidently-wrong miner when two sources agree", () => {
-    const c = consensus([{ source: "scanner", value: 420.69e12 }, { source: "tsup-circle", value: 70.2e9 }, { source: "auto", value: 420.69e12 }], 1);
-    expect(c.majority).toBe(true);
-    expect(c.value).toBeCloseTo(420.69e12);
-    expect(c.outliers.map((o) => o.source)).toEqual(["tsup-circle"]);
-  });
-  it("has no majority on a 1-vs-1 split", () => {
-    const c = consensus([{ source: "a", value: 605_958 }, { source: "b", value: 9_589_908 }], 10);
-    expect(c.majority).toBe(false);
-    expect(c.value).toBeUndefined();
-  });
-});

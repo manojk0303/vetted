@@ -25,9 +25,10 @@ export interface Store {
   /** A previously bought answer, reusable while fresh (buy once, serve every user who asks). */
   getFact(key: string): Promise<CachedFact | undefined>;
   putFact(key: string, fact: CachedFact): Promise<void>;
-  /** Track record per (intent, miner) from Vetted's own cross-checks. */
-  recordMinerOutcome(intent: string, miner: string, outcome: MinerOutcome): Promise<void>;
-  minerStats(): Promise<MinerStat[]>;
+  /** A routed answer that failed a sanity check, kept with its receipt so it can be reported back to Telegraph. */
+  addQualityReport(r: QualityReport): Promise<void>;
+  /** Most recent reports, newest first. */
+  listQualityReports(limit: number): Promise<QualityReport[]>;
   close(): Promise<void>;
 }
 
@@ -40,14 +41,25 @@ export interface CachedFact {
   evidence: import("../vet/types.js").Evidence;
 }
 
-export type MinerOutcome = "agree" | "disagree" | "unusable";
-export interface MinerStat {
-  intent: string;
-  miner: string;
-  agree: number;
-  disagree: number;
-  unusable: number;
-  updatedAt: string;
+/**
+ * Vetted does not rank miners itself: Telegraph's evaluations do that. When a routed
+ * answer is unusable or contradicts a fact Vetted already holds, it is recorded here
+ * (with the signal hash, so anyone can verify it) as input for Telegraph's evaluation
+ * material and bounty reports.
+ */
+export interface QualityReport {
+  at: string;
+  check: string;
+  intent?: string;
+  minerId?: string;
+  minerSlug?: string;
+  signalHash?: string;
+  txHash?: string;
+  /** What was asked (params or query), never secrets. */
+  asked?: unknown;
+  /** Plain-language description of what was wrong. */
+  problem: string;
+  answer?: unknown;
 }
 
 const VALID_ID = /^[a-z0-9-]{6,64}$/i;
@@ -58,13 +70,13 @@ export class FileStore implements Store {
   private ledgerFile: string;
   private memoDir: string;
   private factsFile: string;
-  private statsFile: string;
+  private reportsFile: string;
 
   constructor(dataDir: string) {
     this.ledgerFile = path.join(dataDir, "ledger.jsonl");
     this.memoDir = path.join(dataDir, "memos");
     this.factsFile = path.join(dataDir, "facts.json");
-    this.statsFile = path.join(dataDir, "miner-stats.json");
+    this.reportsFile = path.join(dataDir, "quality-reports.jsonl");
   }
 
   private readJson<T>(file: string, fallback: T): T {
@@ -93,18 +105,15 @@ export class FileStore implements Store {
     this.writeJson(this.factsFile, all);
   }
 
-  async recordMinerOutcome(intent: string, miner: string, outcome: MinerOutcome) {
-    const all = this.readJson<Record<string, MinerStat>>(this.statsFile, {});
-    const k = `${intent}|${miner}`;
-    const cur = all[k] ?? { intent, miner, agree: 0, disagree: 0, unusable: 0, updatedAt: "" };
-    cur[outcome]++;
-    cur.updatedAt = new Date().toISOString();
-    all[k] = cur;
-    this.writeJson(this.statsFile, all);
+  async addQualityReport(r: QualityReport) {
+    fs.mkdirSync(path.dirname(this.reportsFile), { recursive: true });
+    fs.appendFileSync(this.reportsFile, JSON.stringify(r) + "\n");
   }
 
-  async minerStats() {
-    return Object.values(this.readJson<Record<string, MinerStat>>(this.statsFile, {}));
+  async listQualityReports(limit: number) {
+    if (!fs.existsSync(this.reportsFile)) return [];
+    const lines = fs.readFileSync(this.reportsFile, "utf8").trim().split("\n").filter(Boolean);
+    return lines.slice(-limit).map((l) => JSON.parse(l) as QualityReport).reverse();
   }
 
   async init() {
@@ -158,7 +167,7 @@ export class PgStore implements Store {
   private memos: string;
   private ledger: string;
   private facts: string;
-  private stats: string;
+  private reports: string;
 
   /** `prefix` namespaces the tables (tests use a throwaway prefix so they never touch real data). */
   constructor(url: string, private readonly prefix = "vetted") {
@@ -166,7 +175,7 @@ export class PgStore implements Store {
     this.memos = `${prefix}_memos`;
     this.ledger = `${prefix}_ledger`;
     this.facts = `${prefix}_facts`;
-    this.stats = `${prefix}_miner_stats`;
+    this.reports = `${prefix}_quality_reports`;
     // pg currently treats sslmode=require as verify-full and warns about it; ask for verify-full explicitly (same behavior, no warning).
     const connectionString = url.replace(/([?&])sslmode=(require|prefer|verify-ca)\b/, "$1sslmode=verify-full");
     this.pool = new pg.Pool({ connectionString, max: 5, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 15_000 });
@@ -195,14 +204,10 @@ export class PgStore implements Store {
         at    timestamptz NOT NULL,
         body  jsonb NOT NULL
       );
-      CREATE TABLE IF NOT EXISTS ${this.stats} (
-        intent      text NOT NULL,
-        miner       text NOT NULL,
-        agree       integer NOT NULL DEFAULT 0,
-        disagree    integer NOT NULL DEFAULT 0,
-        unusable    integer NOT NULL DEFAULT 0,
-        updated_at  timestamptz NOT NULL DEFAULT now(),
-        PRIMARY KEY (intent, miner)
+      CREATE TABLE IF NOT EXISTS ${this.reports} (
+        seq   bigserial PRIMARY KEY,
+        at    timestamptz NOT NULL,
+        body  jsonb NOT NULL
       );
     `);
   }
@@ -250,23 +255,18 @@ export class PgStore implements Store {
     if (Math.random() < 0.05) await this.pool.query(`DELETE FROM ${this.facts} WHERE at < now() - interval '2 days'`);
   }
 
-  async recordMinerOutcome(intent: string, miner: string, outcome: MinerOutcome) {
-    const col = { agree: "agree", disagree: "disagree", unusable: "unusable" }[outcome]; // whitelist, never interpolate input
-    await this.pool.query(
-      `INSERT INTO ${this.stats} (intent, miner, ${col}, updated_at) VALUES ($1, $2, 1, now())
-       ON CONFLICT (intent, miner) DO UPDATE SET ${col} = ${this.stats}.${col} + 1, updated_at = now()`,
-      [intent, miner],
-    );
+  async addQualityReport(r: QualityReport) {
+    await this.pool.query(`INSERT INTO ${this.reports} (at, body) VALUES ($1, $2)`, [r.at, r]);
   }
 
-  async minerStats() {
-    const r = await this.pool.query(`SELECT intent, miner, agree, disagree, unusable, updated_at FROM ${this.stats}`);
-    return r.rows.map((x) => ({ intent: x.intent, miner: x.miner, agree: x.agree, disagree: x.disagree, unusable: x.unusable, updatedAt: new Date(x.updated_at).toISOString() }));
+  async listQualityReports(limit: number) {
+    const r = await this.pool.query(`SELECT body FROM ${this.reports} ORDER BY seq DESC LIMIT $1`, [limit]);
+    return r.rows.map((x) => x.body as QualityReport);
   }
 
   /** Drop this store's tables (used by tests on their throwaway prefix). */
   async dropTables() {
-    await this.pool.query(`DROP TABLE IF EXISTS ${this.memos}; DROP TABLE IF EXISTS ${this.ledger}; DROP TABLE IF EXISTS ${this.facts}; DROP TABLE IF EXISTS ${this.stats};`);
+    await this.pool.query(`DROP TABLE IF EXISTS ${this.memos}; DROP TABLE IF EXISTS ${this.ledger}; DROP TABLE IF EXISTS ${this.facts}; DROP TABLE IF EXISTS ${this.reports};`);
   }
 
   async close() {

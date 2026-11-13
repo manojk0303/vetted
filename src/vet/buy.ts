@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import type { Budget } from "../core/budget.js";
-import type { MinerStat } from "../core/store.js";
 import type { AskRequest, AskResult, TelegraphClient } from "../core/telegraph.js";
 import { canonicalPayload } from "../core/verify.js";
 import type { Application, Attempt, Evidence } from "./types.js";
@@ -21,8 +20,6 @@ export interface RunCtx {
   emit: (e: VetEvent) => void;
   /** Skip reuse and buy every answer fresh (e.g. a trading agent right before a swap). */
   fresh?: boolean;
-  /** Miner track records, loaded once per run. */
-  stats?: Promise<MinerStat[]>;
 }
 
 /**
@@ -50,62 +47,41 @@ export function factKey(req: AskRequest, simulated: boolean): string {
   return `${simulated ? "sim" : "live"}:${createHash("sha256").update(canon).digest("hex").slice(0, 40)}`;
 }
 
-// ---------------------------------------------------------------- miner track records
-
-/** A miner is distrusted once it has been outvoted or useless at least twice and is wrong more often than right. */
-export function isDistrusted(s: MinerStat | undefined): boolean {
-  if (!s) return false;
-  const bad = s.disagree + s.unusable;
-  return bad >= 2 && s.agree / (bad + s.agree) < 0.5;
-}
-
-async function statsFor(ctx: RunCtx, intent: string): Promise<Map<string, MinerStat>> {
-  ctx.stats ??= ctx.tg.store.minerStats().catch(() => []);
-  return new Map((await ctx.stats).filter((s) => s.intent === intent).map((s) => [s.miner, s]));
-}
-
-export async function record(ctx: RunCtx, intent: string | undefined, miner: string | undefined, outcome: "agree" | "disagree" | "unusable") {
-  if (!intent || !miner || ctx.tg.simulated) return; // simulated runs never shape real track records
-  try {
-    await ctx.tg.store.recordMinerOutcome(intent, miner, outcome);
-  } catch (e) {
-    console.error("miner stats write failed:", (e as Error).message);
-  }
-}
+// ---------------------------------------------------------------- quality reports
 
 /**
- * Drop direct asks to distrusted miners, and when an intent has any distrusted
- * miner, try auto-routing last (the router may pick that miner).
+ * Record a routed answer that failed a sanity check. Vetted never re-ranks miners or
+ * routes around them: choosing the provider is Telegraph's job. Bad answers are kept,
+ * with their receipts, as material for Telegraph's evaluations and bounty reports.
  */
-export async function applyTrust(ctx: RunCtx, attempts: Attempt[]): Promise<Attempt[]> {
-  const keep: Attempt[] = [];
-  const autos: Attempt[] = [];
-  for (const a of attempts) {
-    const intent = a.req.intent;
-    if (!intent) {
-      keep.push(a);
-      continue;
-    }
-    const stats = await statsFor(ctx, intent);
-    const bad = [...stats.values()].filter(isDistrusted).map((s) => s.miner);
-    if (!a.req.minerId) {
-      (bad.length ? autos : keep).push(a);
-      continue;
-    }
-    const slug = (await ctx.tg.rankedMiners(intent).catch(() => [])).find((m) => m.id === a.req.minerId)?.slug;
-    if (slug && bad.includes(slug)) continue;
-    keep.push(a);
+export async function reportQuality(ctx: RunCtx, check: string, ev: Evidence, asked: unknown, problem: string) {
+  if (ctx.tg.simulated || !ev.ok || ev.reused) return; // only real, fresh purchases are reportable
+  try {
+    await ctx.tg.store.addQualityReport({
+      at: new Date().toISOString(),
+      check,
+      intent: ev.intent,
+      minerId: ev.minerId,
+      minerSlug: ev.minerSlug,
+      signalHash: ev.signalHash,
+      txHash: ev.txHash,
+      asked,
+      problem,
+      answer: ev.answer,
+    });
+  } catch (e) {
+    console.error("quality report write failed:", (e as Error).message);
   }
-  return [...keep, ...autos];
 }
 
 // ---------------------------------------------------------------- buying
 
 /**
- * Buy one fact. Tries each attempt in order and stops at the first answer the
- * extractor accepts. A fresh answer bought earlier (by any user) is reused
- * instead of paying again. Every attempt, paid, reused or failed, is kept as
- * evidence, so a junk answer from a miner is visible in the memo.
+ * Buy one fact: one routed purchase per question, with Telegraph choosing the
+ * provider. A second attempt is made only when the first answer is unusable
+ * (missing the fields the question needs), never to second-guess a usable one.
+ * A fresh answer bought earlier (by any user) is reused instead of paying again.
+ * Every attempt, paid, reused or failed, is kept as evidence in the memo.
  */
 export async function buy<T>(
   ctx: RunCtx,
@@ -118,23 +94,25 @@ export async function buy<T>(
   const ttl = FRESH_FOR_SEC[check] ?? 0;
   const store = ctx.tg.store;
   let paid = 0;
-  for (const a of await applyTrust(ctx, attempts)) {
+
+  // 1. Reuse a fresh answer someone already paid for, under any of the attempt forms
+  //    (so a fallback that worked last time is reused, not re-bought behind a failing first form).
+  if (!ctx.fresh && ttl > 0) {
+    for (const a of attempts) {
+      const hit = await store.getFact(factKey(a.req, ctx.tg.simulated)).catch(() => undefined);
+      if (!hit || Date.now() - Date.parse(hit.at) >= ttl * 1000) continue;
+      const value = safe(() => extract(hit.answer));
+      if (value === undefined) continue;
+      const ev: Evidence = { ...hit.evidence, reused: true, boughtAt: hit.at, costUsd: 0, durationMs: 0 };
+      evidence.push(ev);
+      ctx.emit({ type: "attempt", check, why: `reused an answer bought ${ago(hit.at)}`, evidence: ev });
+      return { value, evidence };
+    }
+  }
+
+  for (const a of attempts) {
     if (paid >= maxPaid) break;
     const key = factKey(a.req, ctx.tg.simulated);
-
-    // 1. Reuse a fresh answer someone already paid for.
-    if (!ctx.fresh && ttl > 0) {
-      const hit = await store.getFact(key).catch(() => undefined);
-      if (hit && Date.now() - Date.parse(hit.at) < ttl * 1000) {
-        const value = safe(() => extract(hit.answer));
-        if (value !== undefined) {
-          const ev: Evidence = { ...hit.evidence, reused: true, boughtAt: hit.at, costUsd: 0, durationMs: 0 };
-          evidence.push(ev);
-          ctx.emit({ type: "attempt", check, why: `reused an answer bought ${ago(hit.at)}`, evidence: ev });
-          return { value, evidence };
-        }
-      }
-    }
 
     // 2. Buy it (sharing the payment with any identical purchase already in flight).
     let p = inflight.get(key);
@@ -167,7 +145,7 @@ export async function buy<T>(
     ctx.emit({ type: "attempt", check, why: shared ? "shared a purchase already in flight" : a.why, evidence: ev });
 
     if (r.ok && !shared) {
-      if (value === undefined) await record(ctx, ev.intent, ev.minerSlug, "unusable");
+      if (value === undefined) await reportQuality(ctx, check, ev, a.req.params ?? a.req.query ?? a.req.payload, "answer did not contain the fields the question needs");
       else if (ttl > 0) {
         await store
           .putFact(key, { at: new Date().toISOString(), answer: r.result, evidence: { ...ev, answer: undefined } })
@@ -193,8 +171,12 @@ function ago(iso: string): string {
   return s < 90 ? `${s}s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : `${(s / 3600).toFixed(1)} h ago`;
 }
 
-/** Resolve a miner by slug (ids can change between epochs) and build a direct ask. */
-export async function directBySlug(
+/**
+ * A direct ask to one named miner, through the Telegraph engine. Used only where
+ * routing cannot work yet: an intent with no response format, so Telegraph cannot
+ * evaluate and rank its miners. Remove once the intent is evaluated.
+ */
+export async function pinned(
   ctx: RunCtx,
   intent: string,
   slug: string,
@@ -209,26 +191,9 @@ export async function directBySlug(
   }
 }
 
-/** Canonical direct asks to the N best-ranked miners for an intent. */
-export async function topRanked(
-  ctx: RunCtx,
-  intent: string,
-  params: Record<string, unknown>,
-  n: number,
-  exclude: string[] = [],
-): Promise<Attempt[]> {
-  try {
-    return (await ctx.tg.rankedMiners(intent))
-      .filter((m) => !exclude.includes(m.slug))
-      .slice(0, n)
-      .map((m) => ({ req: { intent, params, minerId: m.id }, why: `rank #${m.rank ?? "?"} for ${intent} (${m.slug})` }));
-  } catch {
-    return [];
-  }
-}
-
+/** A routed ask: Telegraph picks the best-ranked miner for the intent. */
 export function auto(intent: string, params?: Record<string, unknown>, query?: string): Attempt {
-  return { req: { intent, params, query }, why: `auto-routed by Telegraph to the best-ranked ${intent} miner` };
+  return { req: { intent, params, query }, why: `routed by Telegraph to its best-ranked ${intent} miner` };
 }
 
 function trim(v: unknown): unknown {

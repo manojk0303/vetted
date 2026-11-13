@@ -206,7 +206,7 @@ footer { color: var(--ink-3); font-size: 12.5px; padding: 0 20px 40px; text-alig
       <p>Vetted is an autonomous diligence agent. It buys contract security, holder, supply, liquidity, wash-trading, sanctions and reputation intelligence from competing Telegraph miners, then writes a signed LIST / REVIEW / REJECT memo.</p>
       <div class="how">
         <div><b>Buys</b>Each check is a paid machine-to-machine request, routed to ranked miners and settled in USDC.</div>
-        <div><b>Cross-checks</b>Deterministic facts are bought from independent miners and compared. Junk answers are shown, not hidden.</div>
+        <div><b>Routed, then checked</b>One answer per question, from the miner Telegraph ranks best. Answers are compared with the contract scan; junk answers are shown and reported back, not hidden.</div>
         <div><b>Proves</b>Every claim links to a receipt anyone can re-verify. The memo itself is signed by the agent.</div>
       </div>
     </div>
@@ -217,8 +217,8 @@ footer { color: var(--ink-3); font-size: 12.5px; padding: 0 20px 40px; text-alig
     <article class="card memo" id="memo" hidden></article>
     <div class="recent" id="recent" hidden><h3>Recent memos</h3><ul id="recentlist"></ul></div>
     <div class="recent board" id="board" hidden>
-      <h3>Miner reliability</h3>
-      <p class="boardsub">From Vetted's own cross-checks: how often each miner agreed with the majority. Miners that keep getting outvoted are skipped, so nobody pays for their answers again.</p>
+      <h3>Answers we flagged</h3>
+      <p class="boardsub">Telegraph picks and ranks the miners; Vetted buys one routed answer per question. When an answer is unusable or contradicts the contract scan, it lands here with its receipt, as material for Telegraph's evaluations.</p>
       <ul id="boardlist"></ul>
     </div>
   </section>
@@ -397,14 +397,12 @@ async function openMemo(id) {
 
 async function loadBoard() {
   try {
-    const rows = (await (await fetch("/api/miners/reliability")).json()).filter((r) => r.total > 0);
+    const rows = await (await fetch("/api/quality-reports")).json();
     if (!rows.length) return;
     $("#board").hidden = false;
-    rows.sort((a, b) => Number(b.distrusted) - Number(a.distrusted) || b.total - a.total);
-    $("#boardlist").innerHTML = rows.slice(0, 14).map((r) => {
-      const pct = r.agreeRate == null ? "n/a" : `${Math.round(r.agreeRate * 100)}%`;
-      const label = r.distrusted ? `skipped · agreed ${pct}` : `agreed ${pct}`;
-      return `<li><span class="i">${esc(r.intent.replace(/_GENERAL$/, ""))}</span><span class="n">${esc(r.miner)} <span class="x">(${r.agree} agreed, ${r.disagree} outvoted, ${r.unusable} unusable)</span></span><span class="r ${r.distrusted ? "bad" : r.agreeRate >= 0.8 ? "good" : ""}">${label}</span></li>`;
+    $("#boardlist").innerHTML = rows.slice(0, 10).map((r) => {
+      const sig = r.signalHash ? ` <a class="x" href="${esc(node || "https://devnode.telegraphprotocol.com")}/engine/v1/signal/${esc(r.signalHash)}" target="_blank" rel="noopener">signal ${esc(short(r.signalHash, 8))}</a>` : "";
+      return `<li><span class="i">${esc((r.intent || r.check).replace(/_GENERAL$/, ""))}</span><span class="n">${esc(r.problem)} <span class="x">(${esc(r.minerSlug || "routed miner")})</span>${sig}</span><span class="r">${esc(ago(r.at))}</span></li>`;
     }).join("");
   } catch {}
 }

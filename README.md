@@ -8,6 +8,8 @@ The same engine runs in a second mode for trading agents: **ALLOW / CAUTION / BL
 
 **Live demo:** https://vetted-8olr.onrender.com · **Telegram:** [@VettedCheckingBot](https://t.me/VettedCheckingBot) (send it a token address)
 
+**New to Telegraph?** Start with the tutorial: [Build an agent that buys facts on Telegraph without overspending](docs/TUTORIAL.md), and its 50-line runnable example [examples/first-purchase.ts](examples/first-purchase.ts).
+
 > Network status: runs on the **Telegraph testnet** (Ethereum Sepolia, test USDC). Nothing here is production volume or paying-customer usage.
 
 Built for Telegraph Hackathon Season II, Apps & Agents track. Missions: **01 Exchange** (autonomous listings desk) and **14 Web3 Native & DeFi** (buy contract analysis before committing capital).

@@ -48,7 +48,7 @@ export const HELP = [
   "<code>/trade 0x… 5000 [chain]</code>: should I buy $5,000 of it? Includes a max safe size",
   "<code>/chains</code>: supported chains (default: ethereum)",
   "",
-  "Each check is bought from independent data providers on the Telegraph network and cross-checked. Every answer has a receipt you can verify.",
+  "Each check is bought on the Telegraph network, where data providers are ranked on quality, and every answer is sanity-checked and comes with a receipt you can verify.",
   "",
   "<i>Runs on the Telegraph testnet: the token data is real, payments for it use test money. Not financial advice.</i>",
 ].join("\n");

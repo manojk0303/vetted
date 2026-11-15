@@ -166,7 +166,7 @@ footer { color: var(--ink-3); font-size: 12.5px; padding: 0 20px 40px; text-alig
 <main class="wrap">
   <form class="card form" id="form" autocomplete="off">
     <h2>New diligence request</h2>
-    <p class="sub">Paste a token. Vetted buys each check from the best-ranked Telegraph miners, cross-checks them, and signs a memo.</p>
+    <p class="sub">Paste a token. Vetted buys each check through Telegraph's router, checks every answer against what it already knows, and signs a memo.</p>
     <div class="seg" role="group" aria-label="Mode">
       <button type="button" data-mode="listing" aria-pressed="true">Exchange listing</button>
       <button type="button" data-mode="pretrade" aria-pressed="false">Agent pre-trade</button>
@@ -197,15 +197,15 @@ footer { color: var(--ink-3); font-size: 12.5px; padding: 0 20px 40px; text-alig
     </details>
     <button class="run" id="run" type="submit">Run diligence</button>
     <div class="err" id="err" role="alert"></div>
-    <div class="hint" id="costhint">Typical cost: ~$0.08–0.15 in test USDC per memo, paid per check via x402.</div>
+    <div class="hint" id="costhint">Typical cost: ~$0.07 in test USDC for a first check, near $0 for repeats (fresh answers are reused with their receipts). Paid per answer via x402.</div>
   </form>
 
   <section id="out" aria-live="polite">
     <div class="card empty" id="empty">
-      <h1>A listing committee's first pass, in about 30 seconds, for about ten cents.</h1>
-      <p>Vetted is an autonomous diligence agent. It buys contract security, holder, supply, liquidity, wash-trading, sanctions and reputation intelligence from competing Telegraph miners, then writes a signed LIST / REVIEW / REJECT memo.</p>
+      <h1>A listing committee's first pass, in under a minute, for about seven cents.</h1>
+      <p>Vetted is an autonomous diligence agent. It buys contract security, holder, supply, liquidity, wash-trading, sanctions and reputation intelligence on Telegraph, one routed answer per question, then writes a signed LIST / REVIEW / REJECT memo.</p>
       <div class="how">
-        <div><b>Buys</b>Each check is a paid machine-to-machine request, routed to ranked miners and settled in USDC.</div>
+        <div><b>Buys</b>Each check is a paid machine-to-machine request, routed by Telegraph to its best-ranked miner and settled in USDC.</div>
         <div><b>Routed, then checked</b>One answer per question, from the miner Telegraph ranks best. Answers are compared with the contract scan; junk answers are shown and reported back, not hidden.</div>
         <div><b>Proves</b>Every claim links to a receipt anyone can re-verify. The memo itself is signed by the agent.</div>
       </div>
